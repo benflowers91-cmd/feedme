@@ -75,8 +75,17 @@ export async function GET(request: Request) {
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
+      const googleMessage = body?.error?.message as string | undefined
       console.error('Google Search error:', res.status, body)
-      return Response.json({ error: 'Recipe search failed' }, { status: 500 })
+      if (res.status === 403) {
+        const hint = googleMessage?.includes('not been used') || googleMessage?.includes('disabled')
+          ? 'Custom Search API is not enabled — go to Google Cloud Console and enable it for your project.'
+          : googleMessage?.includes('API key')
+          ? 'Invalid API key — check GOOGLE_SEARCH_API_KEY in Vercel env vars.'
+          : 'Access denied — check your Google Search API key and that Custom Search API is enabled.'
+        return Response.json({ error: hint }, { status: 500 })
+      }
+      return Response.json({ error: googleMessage ?? 'Recipe search failed' }, { status: 500 })
     }
 
     const data = await res.json()

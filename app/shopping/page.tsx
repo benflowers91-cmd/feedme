@@ -11,6 +11,7 @@ export default function ShoppingPage() {
   const [newItem, setNewItem] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [clearingAll, setClearingAll] = useState(false)
 
   useEffect(() => {
     if (!session) return
@@ -52,6 +53,13 @@ export default function ShoppingPage() {
     setItems(prev => prev.filter(i => !i.is_checked))
   }
 
+  async function clearAll() {
+    setClearingAll(true)
+    await fetch('/api/shopping?all=true', { method: 'DELETE' })
+    setItems([])
+    setClearingAll(false)
+  }
+
   async function generateFromPlan() {
     setGenerating(true)
     const today = new Date().toISOString().split('T')[0]
@@ -83,7 +91,8 @@ export default function ShoppingPage() {
       for (const ing of recipe.ingredients || []) {
         const key = ing.name.toLowerCase()
         if (!ingredientMap.has(key)) {
-          ingredientMap.set(key, `${ing.amount} ${ing.unit} ${ing.name}`.trim())
+          const parts = [ing.amount, ing.unit, ing.name].filter(v => v != null && v !== '')
+          ingredientMap.set(key, parts.join(' '))
         }
       }
     }
@@ -114,11 +123,22 @@ export default function ShoppingPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-gray-800">Shopping list</h1>
-        {checked.length > 0 && (
-          <button onClick={clearChecked} className="text-xs text-red-400 hover:text-red-600 font-medium">
-            Clear done
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {checked.length > 0 && (
+            <button onClick={clearChecked} className="text-xs text-gray-400 hover:text-gray-600 font-medium">
+              Clear done
+            </button>
+          )}
+          {items.length > 0 && (
+            <button
+              onClick={clearAll}
+              disabled={clearingAll}
+              className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
+            >
+              {clearingAll ? 'Clearing...' : 'Clear all'}
+            </button>
+          )}
+        </div>
       </div>
 
       <button

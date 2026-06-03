@@ -15,7 +15,6 @@ const STATUS_STYLES: Record<FodmapStatus, string> = {
 export default function PantryPage() {
   const { data: session, status } = useSession()
   const [items, setItems] = useState<PantryItem[]>([])
-  const [search, setSearch] = useState('')
   const [name, setName] = useState('')
   const [fodmapStatus, setFodmapStatus] = useState<FodmapStatus>('safe')
   const [quantity, setQuantity] = useState('')
@@ -54,29 +53,17 @@ export default function PantryPage() {
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
-  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
-
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-800 mb-4">Pantry</h1>
 
-      <input
-        type="text"
-        placeholder="Search ingredients..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-green-300"
-      />
-
       {loading ? (
         <p className="text-sm text-gray-400 text-center py-8">Loading...</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">
-          {search ? 'No ingredients match your search.' : 'Your pantry is empty — add some ingredients below.'}
-        </p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">Your pantry is empty — add some ingredients below.</p>
       ) : (
         <ul className="space-y-2 mb-6">
-          {filtered.map(item => (
+          {items.map(item => (
             <li key={item.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100">
               <div>
                 <span className="text-sm font-medium text-gray-800">{item.name}</span>

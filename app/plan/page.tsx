@@ -164,8 +164,8 @@ export default function PlanPage() {
 
       {/* Recipe picker modal */}
       {picking && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setPicking(null)}>
-          <div className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setPicking(null)}>
+          <div className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl max-h-[85vh] overflow-y-auto pb-24" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-800">Pick a recipe</p>
               <p className="text-xs text-gray-400">

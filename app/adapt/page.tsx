@@ -228,12 +228,6 @@ function AdaptPageInner() {
           <p className="text-sm text-gray-700 whitespace-pre-line">{result.instructions}</p>
         </div>
 
-        {result.fodmap_notes && (
-          <div className="bg-green-50 rounded-xl px-4 py-3 mb-4">
-            <p className="text-xs text-green-700">{result.fodmap_notes}</p>
-          </div>
-        )}
-
         <button
           onClick={saveRecipe}
           disabled={saving || saved}

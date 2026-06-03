@@ -76,11 +76,20 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   const checked = searchParams.get('checked')
+  const all = searchParams.get('all')
 
   const supabase = createServerClient()
 
+  if (all === 'true') {
+    const { error } = await supabase
+      .from('shopping_items')
+      .delete()
+      .eq('user_id', session.user.email)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return new Response(null, { status: 204 })
+  }
+
   if (checked === 'true') {
-    // clear all checked items
     const { error } = await supabase
       .from('shopping_items')
       .delete()
