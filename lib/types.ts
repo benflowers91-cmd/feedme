@@ -10,11 +10,17 @@ export interface PantryItem {
   updated_at: string
 }
 
+export interface SubstitutionOption {
+  substitute: string
+  reason: string
+}
+
 export interface RecipeIngredient {
   name: string
-  amount: string
-  unit: string
+  amount: string | null
+  unit: string | null
   fodmap_status: FodmapStatus
+  substitution_options?: SubstitutionOption[]
 }
 
 export interface Recipe {

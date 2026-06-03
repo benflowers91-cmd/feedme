@@ -49,9 +49,11 @@ Return a JSON object with this exact structure:
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    const parsed = JSON.parse(text)
+    const cleaned = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```$/m, '').trim()
+    const parsed = JSON.parse(cleaned)
     return Response.json(parsed)
-  } catch {
+  } catch (err) {
+    console.error('Claude suggest error:', err)
     return Response.json({ error: 'Failed to generate suggestions' }, { status: 500 })
   }
 }
