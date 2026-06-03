@@ -1,65 +1,96 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useSession, signOut } from 'next-auth/react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { SignInPrompt } from '@/components/SignInPrompt'
+import type { MealPlanEntry } from '@/lib/types'
+
+const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack']
+const MEAL_LABELS: Record<string, string> = {
+  breakfast: '🌅 Breakfast',
+  lunch: '☀️ Lunch',
+  dinner: '🌙 Dinner',
+  snack: '🍎 Snack',
+}
+
+export default function HomePage() {
+  const { data: session, status } = useSession()
+  const [todayMeals, setTodayMeals] = useState<MealPlanEntry[]>([])
+
+  const today = new Date().toISOString().split('T')[0]
+  const dayName = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  useEffect(() => {
+    if (!session) return
+    fetch(`/api/plan?from=${today}&to=${today}`)
+      .then(r => r.json())
+      .then(setTodayMeals)
+  }, [session, today])
+
+  if (status === 'loading') return null
+  if (!session) return <SignInPrompt />
+
+  const mealsByType = Object.fromEntries(
+    todayMeals.map(m => [m.meal_type, m])
+  )
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-800">Hi, {session.user?.name?.split(' ')[0]} 👋</h1>
+          <p className="text-sm text-gray-500">{dayName}</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <button onClick={() => signOut()} className="text-xs text-gray-400 hover:text-gray-600">
+          Sign out
+        </button>
+      </div>
+
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Today&apos;s meals</h2>
+        <div className="space-y-2">
+          {MEAL_ORDER.map(type => {
+            const meal = mealsByType[type]
+            return (
+              <Link
+                key={type}
+                href="/plan"
+                className="flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 hover:border-green-200 transition-colors"
+              >
+                <span className="text-sm text-gray-500">{MEAL_LABELS[type]}</span>
+                {meal?.recipe_title ? (
+                  <span className="text-sm font-medium text-gray-800 text-right max-w-[60%]">{meal.recipe_title}</span>
+                ) : (
+                  <span className="text-xs text-gray-300 italic">not planned</span>
+                )}
+              </Link>
+            )
+          })}
         </div>
-      </main>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Quick actions</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/suggest" className="bg-green-50 border border-green-100 rounded-xl px-4 py-4 text-center hover:bg-green-100 transition-colors">
+            <div className="text-2xl mb-1">💡</div>
+            <p className="text-sm font-medium text-green-800">Get recipe ideas</p>
+          </Link>
+          <Link href="/adapt" className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-4 text-center hover:bg-amber-100 transition-colors">
+            <div className="text-2xl mb-1">✨</div>
+            <p className="text-sm font-medium text-amber-800">Adapt a recipe</p>
+          </Link>
+          <Link href="/pantry" className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-4 text-center hover:bg-blue-100 transition-colors">
+            <div className="text-2xl mb-1">🧄</div>
+            <p className="text-sm font-medium text-blue-800">Update pantry</p>
+          </Link>
+          <Link href="/shopping" className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-4 text-center hover:bg-purple-100 transition-colors">
+            <div className="text-2xl mb-1">🛒</div>
+            <p className="text-sm font-medium text-purple-800">Shopping list</p>
+          </Link>
+        </div>
+      </section>
     </div>
-  );
+  )
 }
