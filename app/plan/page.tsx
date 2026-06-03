@@ -173,7 +173,7 @@ export default function PlanPage() {
               </p>
             </div>
             {recipes.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No saved recipes yet. Go to Ideas to generate some!</p>
+              <p className="text-sm text-gray-400 text-center py-8">No saved recipes yet. Use Find or Adapt to save some first.</p>
             ) : (
               <ul className="divide-y divide-gray-50 pb-6">
                 {recipes.map(recipe => (

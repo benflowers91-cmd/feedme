@@ -71,12 +71,16 @@ export default function FindPage() {
       <h1 className="text-xl font-semibold text-gray-800 mb-1">Find recipes</h1>
       <p className="text-sm text-gray-500 mb-4">Real recipes from trusted sites based on your pantry</p>
 
-      {usablePantry.length > 0 && (
+      {usablePantry.length > 0 ? (
         <div className="bg-green-50 rounded-xl px-4 py-3 mb-4">
           <p className="text-xs font-semibold text-green-700 mb-1">Searching with:</p>
           <p className="text-xs text-green-600 leading-relaxed">
             {usablePantry.map(i => i.name).join(', ')}
           </p>
+        </div>
+      ) : (
+        <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4 border border-gray-100">
+          <p className="text-xs text-gray-500">Add ingredients to your <a href="/pantry" className="text-green-600 font-medium hover:underline">Pantry</a> to get personalised recipe suggestions, or search below.</p>
         </div>
       )}
 

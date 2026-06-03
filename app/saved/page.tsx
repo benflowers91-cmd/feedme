@@ -59,7 +59,8 @@ export default function SavedPage() {
   }
 
   function openPlanModal(recipe: Recipe) {
-    const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
     setPlanModal({ recipe, date: today, mealType: 'dinner' })
   }
 

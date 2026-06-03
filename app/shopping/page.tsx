@@ -62,7 +62,6 @@ export default function ShoppingPage() {
 
   async function generateFromPlan() {
     setGenerating(true)
-    const today = new Date().toISOString().split('T')[0]
     const day = new Date().getDay()
     const monday = new Date()
     monday.setDate(new Date().getDate() - ((day + 6) % 7))
@@ -71,7 +70,6 @@ export default function ShoppingPage() {
 
     const from = monday.toISOString().split('T')[0]
     const to = sunday.toISOString().split('T')[0]
-    void today
 
     const planRes = await fetch(`/api/plan?from=${from}&to=${to}`)
     const planEntries: MealPlanEntry[] = await planRes.json()
