@@ -52,6 +52,7 @@ export async function GET(request: Request) {
   if (!apiKey || !cx) {
     return Response.json({ error: 'Recipe search is not configured yet' }, { status: 500 })
   }
+  console.log('API key prefix:', apiKey.slice(0, 8), '| length:', apiKey.length, '| cx prefix:', cx.slice(0, 6))
 
   const { searchParams } = new URL(request.url)
   const ingredients = searchParams.get('ingredients')?.trim()
