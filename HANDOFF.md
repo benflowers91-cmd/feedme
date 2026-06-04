@@ -1,6 +1,6 @@
 # FeedMe — Handoff
 
-Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API, Google Custom Search.
+Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API.
 
 ---
 
@@ -20,7 +20,6 @@ Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API, Goo
 | Auth | NextAuth v4, Google OAuth |
 | Database | Supabase (Postgres) |
 | AI | Anthropic SDK, claude-sonnet-4-6, prompt caching |
-| Recipe search | Google Custom Search API (Programmable Search Engine) |
 | Styles | Tailwind CSS 4 |
 | Hosting | Vercel |
 
@@ -32,7 +31,7 @@ Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API, Goo
 |---|---|---|
 | `/` | — | Home — today's meals, quick action tiles (no nav tab) |
 | `/pantry` | Pantry | Add/remove ingredients with FODMAP status tags |
-| `/suggest` | Find | Search real recipes from trusted sites by pantry ingredients |
+| `/suggest` | Find | Recipe search — currently being reworked (see below) |
 | `/adapt` | Adapt | Fetch from URL or paste text; pick per-ingredient FODMAP substitutions before saving |
 | `/saved` | Saved | Browse all saved recipes; add to meal plan or delete |
 | `/plan` | Plan | Weekly meal planner — assign saved recipes to meal slots |
@@ -49,7 +48,7 @@ app/
   layout.tsx                    # Root layout, PWA metadata, bottom nav
   page.tsx                      # Home (no nav tab)
   pantry/page.tsx
-  suggest/page.tsx              # Find page — real recipe search
+  suggest/page.tsx              # Find page — recipe search (see status below)
   adapt/page.tsx                # 2-step: fetch/paste → substitution picker → save
   saved/page.tsx                # Saved recipes list with Add to plan
   plan/page.tsx
@@ -58,12 +57,12 @@ app/
     auth/[...nextauth]/route.ts
     pantry/route.ts             # GET/POST/DELETE pantry_items
     recipes/route.ts            # GET/POST/DELETE recipes (is_saved=true)
-    recipes/search/route.ts     # GET — Google Custom Search for recipes
+    recipes/search/route.ts     # GET — recipe search (Google CSE, currently broken)
     scrape/route.ts             # POST — fetch URL, extract recipe via JSON-LD
     plan/route.ts               # GET/POST/DELETE meal_plan
     shopping/route.ts           # GET/POST/PATCH/DELETE shopping_items
     adapt/route.ts              # POST — Claude analysis with per-ingredient subs
-    suggest/route.ts            # POST — legacy Claude suggestions (superseded by /find)
+    suggest/route.ts            # POST — legacy Claude suggestions (unused)
 components/
   BottomNav.tsx
   Providers.tsx                 # SessionProvider wrapper
@@ -92,8 +91,8 @@ NEXT_PUBLIC_SUPABASE_URL=<from Supabase project settings>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase project settings>
 SUPABASE_SERVICE_ROLE_KEY=<from Supabase project settings — never expose to client>
 ANTHROPIC_API_KEY=<from console.anthropic.com>
-GOOGLE_SEARCH_API_KEY=<from Google Cloud Console — Custom Search API>
-GOOGLE_SEARCH_ENGINE_ID=<from programmablesearchengine.google.com — the cx value>
+GOOGLE_SEARCH_API_KEY=<only needed if using Google CSE — see Find page status below>
+GOOGLE_SEARCH_ENGINE_ID=<only needed if using Google CSE — see Find page status below>
 ```
 
 For local dev: copy these into `.env.local` (already gitignored).
@@ -129,32 +128,16 @@ Supabase service role key bypasses RLS — all filtering is done manually in API
 - `/api/adapt` uses `claude-sonnet-4-6` with prompt caching on the FODMAP system prompt
 - Returns per-ingredient analysis: `fodmap_status` + `substitution_options[]` for problematic ingredients
 - User picks which substitutions to apply on the adapt page before saving
+- Recipe text capped at 8,000 characters to prevent token overflows
 - FODMAP profile: **moderate sensitivity** — flag triggers, don't be overly restrictive
 - **Partner shellfish allergy** — never suggest shellfish under any circumstances
-
----
-
-## Recipe search (Google Custom Search)
-
-- `/api/recipes/search` calls the Google Custom Search JSON API
-- Search engine is restricted to trusted sites: BBC Good Food, MOB Kitchen, Ottolenghi, delicious., Olive, Jamie Oliver, Nigella, Serious Eats
-- Free tier: 100 queries/day. Each search = 1 query.
-- To add/remove trusted sites: update the Programmable Search Engine at programmablesearchengine.google.com (no code change needed)
-- The trusted sites list is also hardcoded in `/app/api/recipes/search/route.ts` for display names
-
-### Setting up Google Custom Search (one-time)
-1. Go to [programmablesearchengine.google.com](https://programmablesearchengine.google.com) → Create search engine
-2. Add trusted domains (e.g. `bbcgoodfood.com`, `mobkitchen.co.uk`, `ottolenghi.co.uk`)
-3. Copy the **Search engine ID** (`cx` value)
-4. In the same Google Cloud project as OAuth: APIs & Services → enable **Custom Search API**
-5. Add `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID` to Vercel env vars
 
 ---
 
 ## URL scraper (`/api/scrape`)
 
 - Fetches a recipe URL server-side, extracts recipe data from JSON-LD (`application/ld+json` with `@type: Recipe`)
-- Works on most major recipe sites (BBC Good Food, MOB, Ottolenghi, etc.) — they all include schema.org Recipe markup
+- Works on most major recipe sites (BBC Good Food, MOB, Ottolenghi, etc.) — they include schema.org Recipe markup
 - Does NOT work on JS-rendered sites (e.g. NYT Cooking) — returns a friendly 422 with "try pasting instead"
 - No external API or npm dependencies — pure fetch + JSON parsing
 
@@ -168,6 +151,16 @@ Supabase service role key bypasses RLS — all filtering is done manually in API
 4. For each `avoid`/`moderate` ingredient: substitution chips appear (pre-selected to first option)
 5. User picks preferred substitute or "Keep original" for each
 6. "Save adapted recipe" → constructs final ingredients with chosen subs → saves to Supabase
+
+---
+
+## Find page — status and known issue
+
+The Find page (`/suggest`) is built to search real recipes from trusted sites (BBC Good Food, MOB Kitchen, Ottolenghi, delicious., Olive, Jamie Oliver, Nigella, Serious Eats) based on pantry ingredients.
+
+**Current status: broken.** The Google Custom Search JSON API integration is not working despite the API being enabled and valid keys being created. Google returns `400 INVALID_ARGUMENT` errors that have not been resolved through standard setup steps. The `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID` env vars are set in Vercel but the search fails.
+
+**Next step:** Replace the Google CSE approach with direct search links — each trusted site card opens that site's own search results in a new tab using the pantry ingredients as the query. No API key required, always reliable. This is the planned next code change.
 
 ---
 
@@ -190,19 +183,20 @@ Supabase service role key bypasses RLS — all filtering is done manually in API
 
 ## What's complete
 
-- [x] All 7 pages built and functional
+- [x] All 7 pages built
 - [x] All 9 API routes (auth, pantry, recipes, recipes/search, scrape, plan, shopping, adapt, suggest)
 - [x] Supabase schema deployed
 - [x] Google OAuth working
 - [x] Deployed to Vercel (feedme-gules.vercel.app)
 - [x] Clean build — 0 errors
 - [x] Adapt page: URL scraper + interactive per-ingredient substitution picker
-- [x] Find page: real recipes from trusted sites (needs GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID set)
 - [x] Saved recipes tab with Add to plan modal
+- [x] Shopping list: generate from plan, manual add, clear checked, clear all (with confirmation)
 
-## Not yet done
+## Known issues / not yet done
 
-- [ ] Google Search env vars not yet set in Vercel (Find page returns "not configured" until done)
+- [ ] **Find page broken** — Google Custom Search API auth failing; planned fix is direct site search links (no API key)
 - [ ] No PWA install prompt / offline support (web-only)
 - [ ] No FODMAP status auto-tagging when adding pantry items
 - [ ] No push notifications for meal reminders
+- [ ] Shopping list: no copy/share to notes app (see SCOPE_SHOPPING_INTEGRATIONS.md)
