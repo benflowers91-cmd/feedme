@@ -296,8 +296,8 @@ Replace the hardcoded profile with a user-configurable dietary profile stored in
 ### 4. Smart shopping list aggregator
 **What:** The current "Generate from plan" feature pulls ingredients from the week's recipes and deduplicates by exact name match. It doesn't handle near-duplicates or unit differences — so a plan with three recipes calling for different tomato varieties produces three separate line items instead of one consolidated buy.  
 The idea: after generating from plan, run a second Claude call that takes the raw ingredient list and returns a consolidated version — collapsing similar items into the most versatile option with a combined quantity (e.g. "8 vine tomatoes, 8 plum tomatoes, 4 cherry tomatoes" → "20 cherry tomatoes").  
-**Approach:** New API route `/api/shopping/consolidate` (POST, takes `items[]`, returns consolidated `items[]`). A "Consolidate" button on the shopping page triggers it after generation.  
-**Effort:** Medium. Claude call with tool_use schema (same pattern as adapt/suggest). The tricky part is the consolidation prompt — it needs to be specific about FODMAP-safe substitution logic (e.g. don't consolidate a safe item into an avoid item).  
+**Approach:** New API route `/api/shopping/consolidate` (POST, takes `items[]` and `pantry[]`, returns consolidated `items[]`). A "Consolidate" button on the shopping page triggers it after generation. The route fetches the user's current pantry alongside the shopping list — if an ingredient is already in the pantry in sufficient quantity, it can be removed from the shopping list entirely or flagged as "you may already have this."  
+**Effort:** Medium. Claude call with tool_use schema (same pattern as adapt/suggest). The tricky part is the consolidation prompt — it needs to be specific about FODMAP-safe substitution logic (e.g. don't consolidate a safe item into an avoid item) and needs to reason about pantry quantities sensibly.  
 **Files:** New `app/api/shopping/consolidate/route.ts`, `app/shopping/page.tsx`.
 
 ---
