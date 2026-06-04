@@ -38,6 +38,34 @@ export async function POST(request: Request) {
   return Response.json(data, { status: 201 })
 }
 
+export async function PATCH(request: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  if (!id) return Response.json({ error: 'Missing id' }, { status: 400 })
+
+  const { is_favourite } = await request.json()
+  if (typeof is_favourite !== 'boolean') {
+    return Response.json({ error: 'is_favourite must be a boolean' }, { status: 400 })
+  }
+
+  const supabase = createServerClient()
+  const { data, error } = await supabase
+    .from('recipes')
+    .update({ is_favourite })
+    .eq('id', id)
+    .eq('user_id', session.user.email)
+    .select()
+    .single()
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json(data)
+}
+
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {

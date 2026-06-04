@@ -18,6 +18,7 @@ create table recipes (
   source_url text,
   fodmap_notes text,
   is_saved boolean not null default false,
+  is_favourite boolean not null default false,
   created_at timestamptz not null default now()
 );
 

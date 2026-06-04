@@ -58,7 +58,7 @@ app/
   api/
     auth/[...nextauth]/route.ts
     pantry/route.ts             # GET/POST/DELETE pantry_items
-    recipes/route.ts            # GET/POST/DELETE recipes (is_saved=true)
+    recipes/route.ts            # GET/POST/PATCH/DELETE recipes (is_saved=true; PATCH toggles is_favourite)
     scrape/route.ts             # POST — fetch URL, extract recipe via JSON-LD
     search/route.ts             # GET — Tavily web recipe search (?q=query)
     plan/route.ts               # GET/POST/DELETE meal_plan
@@ -108,15 +108,25 @@ TAVILY_API_KEY=<from app.tavily.com — web recipe search>
 
 ## Database
 
-Run `schema.sql` once in the Supabase SQL editor. Four tables:
+Run `schema.sql` once in the Supabase SQL editor to create the tables. **If the database already exists**, apply schema changes as individual migrations (see below) — do not re-run the full schema.
 
+### Tables
 - `pantry_items` — user's fridge/cupboard ingredients
-- `recipes` — saved recipes; `is_saved=true` filter on GET; `source_url` stores original recipe URL
+- `recipes` — saved recipes; `is_saved=true` filter on GET; `source_url` stores original recipe URL; `is_favourite` for tried-and-loved recipes
 - `meal_plan` — unique constraint on `(user_id, plan_date, meal_type)`; upsert on POST
 - `shopping_items` — manual or plan-generated; `is_checked` toggled via PATCH
 
 `user_id` in every table = session user email (from NextAuth).  
 Supabase service role key bypasses RLS — all filtering is done manually in API routes.
+
+### Pending migrations
+
+If picking up this project on a new machine or environment, run these in the Supabase SQL editor in order:
+
+```sql
+-- Add favourites support (run once if is_favourite column doesn't exist)
+alter table recipes add column if not exists is_favourite boolean not null default false;
+```
 
 ---
 
@@ -231,7 +241,7 @@ npm run test:watch  # watch mode for development
 - [x] Google OAuth, Supabase, Vercel deployment
 - [x] Adapt page: URL scraper + interactive per-ingredient substitution picker
 - [x] Find page: Claude suggestions from pantry + Tavily web recipe search
-- [x] Saved recipes with Add to plan modal
+- [x] Saved recipes with Add to plan modal and favourites (heart toggle + filter)
 - [x] Weekly meal planner with navigation
 - [x] Shopping list: generate from plan, manual add, check off, clear
 - [x] Claude routes use tool_use — structured output, no JSON parsing

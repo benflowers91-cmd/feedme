@@ -32,6 +32,7 @@ export interface Recipe {
   source_url: string | null
   fodmap_notes: string
   is_saved: boolean
+  is_favourite: boolean
   created_at: string
 }
 

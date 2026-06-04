@@ -14,6 +14,14 @@ const STATUS_STYLES: Record<string, string> = {
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
 export default function SavedPage() {
   const { data: session, status } = useSession()
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -21,9 +29,11 @@ export default function SavedPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  const [toggling, setToggling] = useState<string | null>(null)
   const [planModal, setPlanModal] = useState<{ recipe: Recipe; date: string; mealType: MealType; error?: string } | null>(null)
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'all' | 'favourites'>('all')
 
   useEffect(() => {
     if (!session) return
@@ -31,6 +41,27 @@ export default function SavedPage() {
       .then(r => r.json())
       .then(data => { setRecipes(data); setLoading(false) })
   }, [session])
+
+  async function toggleFavourite(recipe: Recipe) {
+    if (toggling) return
+    const newValue = !recipe.is_favourite
+    setToggling(recipe.id)
+    setRecipes(prev => prev.map(r => r.id === recipe.id ? { ...r, is_favourite: newValue } : r))
+    try {
+      const res = await fetch(`/api/recipes?id=${recipe.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_favourite: newValue }),
+      })
+      if (!res.ok) {
+        setRecipes(prev => prev.map(r => r.id === recipe.id ? { ...r, is_favourite: recipe.is_favourite } : r))
+      }
+    } catch {
+      setRecipes(prev => prev.map(r => r.id === recipe.id ? { ...r, is_favourite: recipe.is_favourite } : r))
+    } finally {
+      setToggling(null)
+    }
+  }
 
   async function deleteRecipe(id: string) {
     setDeleting(id)
@@ -82,20 +113,58 @@ export default function SavedPage() {
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
+  const favouriteCount = recipes.filter(r => r.is_favourite).length
+  const displayedRecipes = (filter === 'favourites' ? recipes.filter(r => r.is_favourite) : [...recipes].sort((a, b) => {
+    if (a.is_favourite === b.is_favourite) return 0
+    return a.is_favourite ? -1 : 1
+  }))
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-800 mb-4">Saved recipes</h1>
 
+      {/* Filter tabs */}
+      {recipes.length > 0 && (
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setFilter('all')}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              filter === 'all'
+                ? 'bg-gray-800 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            All ({recipes.length})
+          </button>
+          <button
+            onClick={() => setFilter('favourites')}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors flex items-center gap-1 ${
+              filter === 'favourites'
+                ? 'bg-pink-500 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            <HeartIcon filled={filter === 'favourites'} />
+            Favourites ({favouriteCount})
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-gray-400 text-center py-8">Loading...</p>
-      ) : recipes.length === 0 ? (
+      ) : displayedRecipes.length === 0 && filter === 'favourites' ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-400 mb-1">No favourites yet.</p>
+          <p className="text-xs text-gray-400">Tap the heart on recipes you&apos;ve tried and loved.</p>
+        </div>
+      ) : displayedRecipes.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-sm text-gray-400 mb-2">No saved recipes yet.</p>
           <p className="text-xs text-gray-400">Adapt a recipe to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {recipes.map(recipe => {
+          {displayedRecipes.map(recipe => {
             const isExpanded = expandedId === recipe.id
             return (
               <div key={recipe.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -103,8 +172,15 @@ export default function SavedPage() {
                   className="w-full px-4 py-3 flex items-start justify-between text-left gap-3"
                   onClick={() => setExpandedId(isExpanded ? null : recipe.id)}
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">{recipe.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      {recipe.is_favourite && (
+                        <span className="text-pink-500 shrink-0">
+                          <HeartIcon filled />
+                        </span>
+                      )}
+                      <p className="text-sm font-semibold text-gray-800 truncate">{recipe.title}</p>
+                    </div>
                     {recipe.fodmap_notes && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{recipe.fodmap_notes}</p>
                     )}
@@ -125,15 +201,28 @@ export default function SavedPage() {
                       )}
                     </div>
                   </div>
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    className={`w-4 h-4 text-gray-400 shrink-0 transition-transform mt-0.5 ${isExpanded ? 'rotate-180' : ''}`}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-                  </svg>
+                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleFavourite(recipe) }}
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        recipe.is_favourite
+                          ? 'text-pink-500 hover:text-pink-600'
+                          : 'text-gray-300 hover:text-pink-400'
+                      }`}
+                      aria-label={recipe.is_favourite ? 'Remove from favourites' : 'Add to favourites'}
+                    >
+                      <HeartIcon filled={recipe.is_favourite} />
+                    </button>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                    </svg>
+                  </div>
                 </button>
 
                 {isExpanded && (
@@ -164,6 +253,7 @@ export default function SavedPage() {
                     {deleteError && deleting === null && expandedId === recipe.id && (
                       <p className="text-xs text-red-500">{deleteError}</p>
                     )}
+
                     <div className="flex gap-2 pt-1">
                       {planAdded === recipe.id ? (
                         <span className="flex-1 text-center text-xs text-green-600 py-2 font-medium">✓ Added to plan</span>
