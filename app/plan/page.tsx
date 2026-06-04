@@ -21,7 +21,7 @@ function getWeekDates(offset = 0) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday)
     d.setDate(monday.getDate() + i)
-    return d.toISOString().split('T')[0]
+    return d.toLocaleDateString('en-CA')
   })
 }
 
@@ -32,6 +32,7 @@ export default function PlanPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [picking, setPicking] = useState<{ date: string; meal_type: MealType } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mutationError, setMutationError] = useState('')
 
   const weekDates = getWeekDates(weekOffset)
   const from = weekDates[0]
@@ -55,33 +56,51 @@ export default function PlanPage() {
 
   async function assignRecipe(recipe: Recipe) {
     if (!picking) return
-    const res = await fetch('/api/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        plan_date: picking.date,
-        meal_type: picking.meal_type,
-        recipe_id: recipe.id,
-        recipe_title: recipe.title,
-      }),
-    })
-    const newEntry = await res.json()
-    setPlan(prev => {
-      const key = `${newEntry.plan_date}:${newEntry.meal_type}`
-      return [...prev.filter(e => `${e.plan_date}:${e.meal_type}` !== key), newEntry]
-    })
-    setPicking(null)
+    setMutationError('')
+    try {
+      const res = await fetch('/api/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_date: picking.date,
+          meal_type: picking.meal_type,
+          recipe_id: recipe.id,
+          recipe_title: recipe.title,
+        }),
+      })
+      if (!res.ok) {
+        setMutationError('Failed to add recipe — try again')
+        return
+      }
+      const newEntry = await res.json()
+      setPlan(prev => {
+        const key = `${newEntry.plan_date}:${newEntry.meal_type}`
+        return [...prev.filter(e => `${e.plan_date}:${e.meal_type}` !== key), newEntry]
+      })
+      setPicking(null)
+    } catch {
+      setMutationError('Failed to add recipe — check your connection')
+    }
   }
 
   async function clearSlot(entry: MealPlanEntry) {
-    await fetch(`/api/plan?id=${entry.id}`, { method: 'DELETE' })
-    setPlan(prev => prev.filter(e => e.id !== entry.id))
+    setMutationError('')
+    try {
+      const res = await fetch(`/api/plan?id=${entry.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setMutationError('Failed to clear slot — try again')
+        return
+      }
+      setPlan(prev => prev.filter(e => e.id !== entry.id))
+    } catch {
+      setMutationError('Failed to clear slot — check your connection')
+    }
   }
 
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString('en-CA')
 
   return (
     <div>
@@ -112,6 +131,10 @@ export default function PlanPage() {
           </button>
         </div>
       </div>
+
+      {mutationError && (
+        <p className="text-xs text-red-500 mb-3">{mutationError}</p>
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-400 text-center py-8">Loading...</p>
@@ -162,7 +185,6 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Recipe picker modal */}
       {picking && (
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setPicking(null)}>
           <div className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl max-h-[85vh] overflow-y-auto pb-24" onClick={e => e.stopPropagation()}>

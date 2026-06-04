@@ -12,6 +12,7 @@ export default function ShoppingPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [clearingAll, setClearingAll] = useState(false)
+  const [mutationError, setMutationError] = useState('')
 
   useEffect(() => {
     if (!session) return
@@ -23,93 +24,160 @@ export default function ShoppingPage() {
   async function addItem(e: React.FormEvent) {
     e.preventDefault()
     if (!newItem.trim()) return
-    const res = await fetch('/api/shopping', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newItem.trim() }),
-    })
-    const data = await res.json()
-    setItems(prev => [data[0], ...prev])
-    setNewItem('')
+    setMutationError('')
+    try {
+      const res = await fetch('/api/shopping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newItem.trim() }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setMutationError(data.error ?? 'Failed to add item — try again')
+        return
+      }
+      const data = await res.json()
+      if (Array.isArray(data) && data.length > 0) {
+        setItems(prev => [data[0], ...prev])
+        setNewItem('')
+      }
+    } catch {
+      setMutationError('Failed to add item — check your connection')
+    }
   }
 
   async function toggleItem(item: ShoppingItem) {
-    const res = await fetch(`/api/shopping?id=${item.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_checked: !item.is_checked }),
-    })
-    const updated = await res.json()
-    setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
+    setMutationError('')
+    try {
+      const res = await fetch(`/api/shopping?id=${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_checked: !item.is_checked }),
+      })
+      if (!res.ok) {
+        setMutationError('Failed to update item — try again')
+        return
+      }
+      const updated = await res.json()
+      setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
+    } catch {
+      setMutationError('Failed to update item — check your connection')
+    }
   }
 
   async function deleteItem(id: string) {
-    await fetch(`/api/shopping?id=${id}`, { method: 'DELETE' })
-    setItems(prev => prev.filter(i => i.id !== id))
+    setMutationError('')
+    try {
+      const res = await fetch(`/api/shopping?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setMutationError('Failed to remove item — try again')
+        return
+      }
+      setItems(prev => prev.filter(i => i.id !== id))
+    } catch {
+      setMutationError('Failed to remove item — check your connection')
+    }
   }
 
   async function clearChecked() {
-    await fetch('/api/shopping?checked=true', { method: 'DELETE' })
-    setItems(prev => prev.filter(i => !i.is_checked))
+    setMutationError('')
+    try {
+      const res = await fetch('/api/shopping?checked=true', { method: 'DELETE' })
+      if (!res.ok) {
+        setMutationError('Failed to clear done items — try again')
+        return
+      }
+      setItems(prev => prev.filter(i => !i.is_checked))
+    } catch {
+      setMutationError('Failed to clear done items — check your connection')
+    }
   }
 
   async function clearAll() {
     if (!confirm('Clear the entire shopping list?')) return
     setClearingAll(true)
-    await fetch('/api/shopping?all=true', { method: 'DELETE' })
-    setItems([])
-    setClearingAll(false)
+    setMutationError('')
+    try {
+      const res = await fetch('/api/shopping?all=true', { method: 'DELETE' })
+      if (!res.ok) {
+        setMutationError('Failed to clear list — try again')
+        return
+      }
+      setItems([])
+    } catch {
+      setMutationError('Failed to clear list — check your connection')
+    } finally {
+      setClearingAll(false)
+    }
   }
 
   async function generateFromPlan() {
     setGenerating(true)
+    setMutationError('')
     const day = new Date().getDay()
     const monday = new Date()
     monday.setDate(new Date().getDate() - ((day + 6) % 7))
     const sunday = new Date(monday)
     sunday.setDate(monday.getDate() + 6)
 
-    const from = monday.toISOString().split('T')[0]
-    const to = sunday.toISOString().split('T')[0]
+    const from = monday.toLocaleDateString('en-CA')
+    const to = sunday.toLocaleDateString('en-CA')
 
-    const planRes = await fetch(`/api/plan?from=${from}&to=${to}`)
-    const planEntries: MealPlanEntry[] = await planRes.json()
+    try {
+      const planRes = await fetch(`/api/plan?from=${from}&to=${to}`)
+      if (!planRes.ok) {
+        setMutationError('Failed to load plan — try again')
+        return
+      }
+      const planEntries: MealPlanEntry[] = await planRes.json()
 
-    const recipeIds = [...new Set(planEntries.map(e => e.recipe_id).filter(Boolean))] as string[]
-    if (recipeIds.length === 0) {
-      setGenerating(false)
-      return
-    }
+      const recipeIds = [...new Set(planEntries.map(e => e.recipe_id).filter(Boolean))] as string[]
+      if (recipeIds.length === 0) {
+        setGenerating(false)
+        return
+      }
 
-    const recipesRes = await fetch('/api/recipes')
-    const allRecipes: Recipe[] = await recipesRes.json()
-    const plannedRecipes = allRecipes.filter(r => recipeIds.includes(r.id))
+      const recipesRes = await fetch('/api/recipes')
+      if (!recipesRes.ok) {
+        setMutationError('Failed to load recipes — try again')
+        return
+      }
+      const allRecipes: Recipe[] = await recipesRes.json()
+      const plannedRecipes = allRecipes.filter(r => recipeIds.includes(r.id))
 
-    const ingredientMap: Map<string, string> = new Map()
-    for (const recipe of plannedRecipes) {
-      for (const ing of recipe.ingredients || []) {
-        const key = ing.name.toLowerCase()
-        if (!ingredientMap.has(key)) {
-          const parts = [ing.amount, ing.unit, ing.name].filter(v => v != null && v !== '')
-          ingredientMap.set(key, parts.join(' '))
+      const ingredientMap: Map<string, string> = new Map()
+      for (const recipe of plannedRecipes) {
+        for (const ing of recipe.ingredients || []) {
+          const key = ing.name.toLowerCase()
+          if (!ingredientMap.has(key)) {
+            const parts = [ing.amount, ing.unit, ing.name].filter(v => v != null && v !== '')
+            ingredientMap.set(key, parts.join(' '))
+          }
         }
       }
-    }
 
-    if (ingredientMap.size === 0) {
+      if (ingredientMap.size === 0) {
+        setGenerating(false)
+        return
+      }
+
+      const newItems = Array.from(ingredientMap.values()).map(name => ({ name }))
+      const res = await fetch('/api/shopping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newItems),
+      })
+      if (!res.ok) {
+        setMutationError('Failed to add items to shopping list — try again')
+        return
+      }
+      const data = await res.json()
+      setItems(prev => [...data, ...prev])
+    } catch {
+      setMutationError('Something went wrong — check your connection')
+    } finally {
       setGenerating(false)
-      return
     }
-
-    const newItems = Array.from(ingredientMap.values()).map(name => ({ name }))
-    const res = await fetch('/api/shopping', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newItems),
-    })
-    const data = await res.json()
-    setItems(prev => [...data, ...prev])
-    setGenerating(false)
   }
 
   if (status === 'loading') return null
@@ -139,6 +207,10 @@ export default function ShoppingPage() {
           )}
         </div>
       </div>
+
+      {mutationError && (
+        <p className="text-xs text-red-500 mb-3">{mutationError}</p>
+      )}
 
       <button
         onClick={generateFromPlan}

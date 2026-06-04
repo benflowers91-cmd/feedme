@@ -20,6 +20,7 @@ export default function PantryPage() {
   const [quantity, setQuantity] = useState('')
   const [adding, setAdding] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [mutationError, setMutationError] = useState('')
 
   useEffect(() => {
     if (!session) return
@@ -32,22 +33,42 @@ export default function PantryPage() {
     e.preventDefault()
     if (!name.trim()) return
     setAdding(true)
-    const res = await fetch('/api/pantry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), fodmap_status: fodmapStatus, quantity: quantity || null }),
-    })
-    const newItem = await res.json()
-    setItems(prev => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)))
-    setName('')
-    setQuantity('')
-    setFodmapStatus('safe')
-    setAdding(false)
+    setMutationError('')
+    try {
+      const res = await fetch('/api/pantry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), fodmap_status: fodmapStatus, quantity: quantity || null }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setMutationError(data.error ?? 'Failed to add item — try again')
+        return
+      }
+      const newItem = await res.json()
+      setItems(prev => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)))
+      setName('')
+      setQuantity('')
+      setFodmapStatus('safe')
+    } catch {
+      setMutationError('Failed to add item — check your connection')
+    } finally {
+      setAdding(false)
+    }
   }
 
   async function deleteItem(id: string) {
-    await fetch(`/api/pantry?id=${id}`, { method: 'DELETE' })
-    setItems(prev => prev.filter(i => i.id !== id))
+    setMutationError('')
+    try {
+      const res = await fetch(`/api/pantry?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setMutationError('Failed to remove item — try again')
+        return
+      }
+      setItems(prev => prev.filter(i => i.id !== id))
+    } catch {
+      setMutationError('Failed to remove item — check your connection')
+    }
   }
 
   if (status === 'loading') return null
@@ -125,6 +146,7 @@ export default function PantryPage() {
           >
             {adding ? 'Adding...' : 'Add to pantry'}
           </button>
+          {mutationError && <p className="text-xs text-red-500">{mutationError}</p>}
         </form>
       </div>
     </div>

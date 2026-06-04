@@ -20,6 +20,7 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   const [planModal, setPlanModal] = useState<{ recipe: Recipe; date: string; mealType: MealType; error?: string } | null>(null)
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
@@ -33,10 +34,20 @@ export default function SavedPage() {
 
   async function deleteRecipe(id: string) {
     setDeleting(id)
-    await fetch(`/api/recipes?id=${id}`, { method: 'DELETE' })
-    setRecipes(prev => prev.filter(r => r.id !== id))
-    if (expandedId === id) setExpandedId(null)
-    setDeleting(null)
+    setDeleteError('')
+    try {
+      const res = await fetch(`/api/recipes?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setDeleteError('Failed to delete recipe — try again')
+        return
+      }
+      setRecipes(prev => prev.filter(r => r.id !== id))
+      if (expandedId === id) setExpandedId(null)
+    } catch {
+      setDeleteError('Failed to delete recipe — check your connection')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   async function addToPlan() {
@@ -150,6 +161,9 @@ export default function SavedPage() {
                       </div>
                     )}
 
+                    {deleteError && deleting === null && expandedId === recipe.id && (
+                      <p className="text-xs text-red-500">{deleteError}</p>
+                    )}
                     <div className="flex gap-2 pt-1">
                       {planAdded === recipe.id ? (
                         <span className="flex-1 text-center text-xs text-green-600 py-2 font-medium">✓ Added to plan</span>

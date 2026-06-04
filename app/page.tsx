@@ -18,7 +18,7 @@ export default function HomePage() {
   const { data: session, status } = useSession()
   const [todayMeals, setTodayMeals] = useState<MealPlanEntry[]>([])
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString('en-CA')
   const dayName = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
 
   useEffect(() => {
