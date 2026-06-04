@@ -19,8 +19,10 @@ Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API.
 | Framework | Next.js 16.2.7, App Router, no `src/` dir |
 | Auth | NextAuth v4, Google OAuth |
 | Database | Supabase (Postgres) |
-| AI | Anthropic SDK, claude-sonnet-4-6, prompt caching |
+| AI | Anthropic SDK, claude-sonnet-4-6, prompt caching, tool_use for structured output |
+| Search | Tavily API (web recipe search) |
 | Styles | Tailwind CSS 4 |
+| Tests | Vitest 4 |
 | Hosting | Vercel |
 
 ---
@@ -31,7 +33,7 @@ Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API.
 |---|---|---|
 | `/` | — | Home — today's meals, quick action tiles (no nav tab) |
 | `/pantry` | Pantry | Add/remove ingredients with FODMAP status tags |
-| `/suggest` | Find | Recipe search — currently being reworked (see below) |
+| `/suggest` | Find | AI recipe suggestions from pantry + Tavily web search |
 | `/adapt` | Adapt | Fetch from URL or paste text; pick per-ingredient FODMAP substitutions before saving |
 | `/saved` | Saved | Browse all saved recipes; add to meal plan or delete |
 | `/plan` | Plan | Weekly meal planner — assign saved recipes to meal slots |
@@ -48,7 +50,7 @@ app/
   layout.tsx                    # Root layout, PWA metadata, bottom nav
   page.tsx                      # Home (no nav tab)
   pantry/page.tsx
-  suggest/page.tsx              # Find page — recipe search (see status below)
+  suggest/page.tsx              # Find page — Claude suggestions + Tavily web search
   adapt/page.tsx                # 2-step: fetch/paste → substitution picker → save
   saved/page.tsx                # Saved recipes list with Add to plan
   plan/page.tsx
@@ -57,12 +59,12 @@ app/
     auth/[...nextauth]/route.ts
     pantry/route.ts             # GET/POST/DELETE pantry_items
     recipes/route.ts            # GET/POST/DELETE recipes (is_saved=true)
-    recipes/search/route.ts     # GET — recipe search (Google CSE, currently broken)
     scrape/route.ts             # POST — fetch URL, extract recipe via JSON-LD
+    search/route.ts             # GET — Tavily web recipe search (?q=query)
     plan/route.ts               # GET/POST/DELETE meal_plan
     shopping/route.ts           # GET/POST/PATCH/DELETE shopping_items
-    adapt/route.ts              # POST — Claude analysis with per-ingredient subs
-    suggest/route.ts            # POST — legacy Claude suggestions (unused)
+    adapt/route.ts              # POST — Claude analysis with per-ingredient subs (tool_use)
+    suggest/route.ts            # POST — Claude recipe suggestions from pantry (tool_use)
 components/
   BottomNav.tsx
   Providers.tsx                 # SessionProvider wrapper
@@ -72,15 +74,23 @@ lib/
   supabase.ts                   # createServerClient() — service role, server-side only
   types.ts                      # TypeScript types (incl. SubstitutionOption)
   fodmap-prompt.ts              # Claude system prompt (cached)
+  scrape-utils.ts               # Pure JSON-LD extraction logic (also used in tests)
+__tests__/
+  api/adapt.test.ts             # Route smoke tests — auth, validation, Claude mock
+  api/suggest.test.ts           # Route smoke tests — auth, Claude mock
+  lib/scrape-utils.test.ts      # Pure extraction tests — no mocks, no network
 schema.sql                      # Run once in Supabase SQL editor
 public/manifest.json            # PWA manifest
+SCOPE_RECIPE_SEARCH.md          # Tavily integration spec
+SCOPE_SHOPPING_INTEGRATIONS.md  # Future shopping list share/export scope
 ```
 
 ---
 
 ## Environment variables
 
-Set in Vercel project settings (Settings → Environment Variables):
+Set in Vercel project settings (Settings → Environment Variables).  
+For local dev: copy into `.env.local` (already gitignored).
 
 ```
 NEXTAUTH_URL=https://feedme-gules.vercel.app
@@ -91,11 +101,8 @@ NEXT_PUBLIC_SUPABASE_URL=<from Supabase project settings>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase project settings>
 SUPABASE_SERVICE_ROLE_KEY=<from Supabase project settings — never expose to client>
 ANTHROPIC_API_KEY=<from console.anthropic.com>
-GOOGLE_SEARCH_API_KEY=<only needed if using Google CSE — see Find page status below>
-GOOGLE_SEARCH_ENGINE_ID=<only needed if using Google CSE — see Find page status below>
+TAVILY_API_KEY=<from app.tavily.com — web recipe search>
 ```
-
-For local dev: copy these into `.env.local` (already gitignored).
 
 ---
 
@@ -125,21 +132,50 @@ Supabase service role key bypasses RLS — all filtering is done manually in API
 
 ## AI (Claude)
 
-- `/api/adapt` uses `claude-sonnet-4-6` with prompt caching on the FODMAP system prompt
-- Returns per-ingredient analysis: `fodmap_status` + `substitution_options[]` for problematic ingredients
-- User picks which substitutions to apply on the adapt page before saving
-- Recipe text capped at 8,000 characters to prevent token overflows
-- FODMAP profile: **moderate sensitivity** — flag triggers, don't be overly restrictive
-- **Partner shellfish allergy** — never suggest shellfish under any circumstances
+Both Claude routes (`/api/adapt`, `/api/suggest`) use `tool_use` with a typed schema to force structured output — no text parsing or JSON cleanup. The FODMAP system prompt is cached via `cache_control: ephemeral`.
+
+**`/api/adapt`**
+- Model: `claude-sonnet-4-6`
+- Returns per-ingredient analysis: `fodmap_status` + `substitution_options[]`
+- User picks substitutions on the adapt page before saving
+- Recipe text capped at 8,000 characters
+
+**`/api/suggest`**
+- Model: `claude-sonnet-4-6`
+- Returns 3 complete FODMAP-safe recipes based on pantry items + optional preferences
+- Recipes include full ingredients (with quantities) and step-by-step instructions
+- Can be saved directly without going through the adapt flow
+
+**FODMAP profile:** moderate sensitivity — flag triggers, don't be overly restrictive.  
+**Partner shellfish allergy** — never suggest shellfish under any circumstances.
 
 ---
 
 ## URL scraper (`/api/scrape`)
 
 - Fetches a recipe URL server-side, extracts recipe data from JSON-LD (`application/ld+json` with `@type: Recipe`)
-- Works on most major recipe sites (BBC Good Food, MOB, Ottolenghi, etc.) — they include schema.org Recipe markup
+- Pure extraction logic lives in `lib/scrape-utils.ts` (tested independently)
+- Works on most major recipe sites (BBC Good Food, MOB, Ottolenghi, etc.)
 - Does NOT work on JS-rendered sites (e.g. NYT Cooking) — returns a friendly 422 with "try pasting instead"
-- No external API or npm dependencies — pure fetch + JSON parsing
+- 10-second timeout, 2MB page size limit
+
+---
+
+## Web search (`/api/search`)
+
+- GET `/api/search?q=<query>` — calls Tavily, appends "recipe" to query, returns up to 8 results
+- Results: `{ title, url, snippet, source }` — snippet is first 180 chars of Tavily content
+- Requires `TAVILY_API_KEY` env var; returns 503 "Search not configured" if missing (graceful degradation)
+- Free tier: 1,000 searches/month at basic depth — sufficient for personal use
+- See `SCOPE_RECIPE_SEARCH.md` for full integration spec
+
+---
+
+## Find page — two sections
+
+**AI suggestions (top):** Auto-loads on page mount using pantry items. Claude generates 3 complete FODMAP-safe recipes. Preferences input ("quick and easy", "Italian") and Refresh button. Results can be saved directly to the recipe library.
+
+**Web search (bottom):** User-triggered Tavily search. Finds real recipe pages from the web. Each result has a "Fetch & Adapt" button that sends the URL to `/adapt?url=...` — the adapt flow scrapes and analyses the recipe.
 
 ---
 
@@ -154,13 +190,20 @@ Supabase service role key bypasses RLS — all filtering is done manually in API
 
 ---
 
-## Find page — status and known issue
+## Tests
 
-The Find page (`/suggest`) is built to search real recipes from trusted sites (BBC Good Food, MOB Kitchen, Ottolenghi, delicious., Olive, Jamie Oliver, Nigella, Serious Eats) based on pantry ingredients.
+```bash
+npm test          # run all tests once (used in CI/pre-deploy checks)
+npm run test:watch  # watch mode for development
+```
 
-**Current status: broken.** The Google Custom Search JSON API integration is not working despite the API being enabled and valid keys being created. Google returns `400 INVALID_ARGUMENT` errors that have not been resolved through standard setup steps. The `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID` env vars are set in Vercel but the search fails.
+25 tests across 3 files. All tests mock external services (Claude, NextAuth) — no network calls, no API spend.
 
-**Next step:** Replace the Google CSE approach with direct search links — each trusted site card opens that site's own search results in a new tab using the pantry ingredients as the query. No API key required, always reliable. This is the planned next code change.
+| File | What it covers |
+|---|---|
+| `__tests__/lib/scrape-utils.test.ts` | JSON-LD extraction: nested recipes, @graph, string vs array instructions, edge cases |
+| `__tests__/api/adapt.test.ts` | Auth (401), validation (400), success path with mocked Claude, unexpected Claude response |
+| `__tests__/api/suggest.test.ts` | Auth (401), success with pantry items, success with empty pantry |
 
 ---
 
@@ -169,6 +212,7 @@ The Find page (`/suggest`) is built to search real recipes from trusted sites (B
 1. `git add <files> && git commit -m "..."`
 2. `git push origin main`
 3. Vercel auto-deploys on push to main
+4. If new env vars were added: Vercel → Settings → Environment Variables → add → **Redeploy manually** (Vercel does not redeploy automatically when env vars change)
 
 ---
 
@@ -183,20 +227,23 @@ The Find page (`/suggest`) is built to search real recipes from trusted sites (B
 
 ## What's complete
 
-- [x] All 7 pages built
-- [x] All 9 API routes (auth, pantry, recipes, recipes/search, scrape, plan, shopping, adapt, suggest)
-- [x] Supabase schema deployed
-- [x] Google OAuth working
-- [x] Deployed to Vercel (feedme-gules.vercel.app)
-- [x] Clean build — 0 errors
+- [x] All 7 pages built and working
+- [x] Google OAuth, Supabase, Vercel deployment
 - [x] Adapt page: URL scraper + interactive per-ingredient substitution picker
-- [x] Saved recipes tab with Add to plan modal
-- [x] Shopping list: generate from plan, manual add, clear checked, clear all (with confirmation)
+- [x] Find page: Claude suggestions from pantry + Tavily web recipe search
+- [x] Saved recipes with Add to plan modal
+- [x] Weekly meal planner with navigation
+- [x] Shopping list: generate from plan, manual add, check off, clear
+- [x] Claude routes use tool_use — structured output, no JSON parsing
+- [x] Error handling on all mutations (non-optimistic, inline error messages)
+- [x] Timezone bug fixed on home, plan, shopping pages
+- [x] 25 Vitest smoke tests — scrape utils, adapt route, suggest route
 
-## Known issues / not yet done
+## Known gaps / not yet done
 
-- [ ] **Find page broken** — Google Custom Search API auth failing; planned fix is direct site search links (no API key)
-- [ ] No PWA install prompt / offline support (web-only)
-- [ ] No FODMAP status auto-tagging when adding pantry items
+- [ ] No PWA install prompt / offline support
+- [ ] No FODMAP status auto-tagging when adding pantry items (must select manually)
 - [ ] No push notifications for meal reminders
 - [ ] Shopping list: no copy/share to notes app (see SCOPE_SHOPPING_INTEGRATIONS.md)
+- [ ] No recipe edit — must delete and re-adapt to change a saved recipe
+- [ ] Supabase has no RLS policies — safe for personal use, would need RLS before sharing with other users
