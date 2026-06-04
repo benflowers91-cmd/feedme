@@ -54,6 +54,7 @@ export default function ShoppingPage() {
   }
 
   async function clearAll() {
+    if (!confirm('Clear the entire shopping list?')) return
     setClearingAll(true)
     await fetch('/api/shopping?all=true', { method: 'DELETE' })
     setItems([])

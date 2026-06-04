@@ -76,6 +76,7 @@ function AdaptPageInner() {
     if (!recipeText.trim()) return
     setAnalysing(true)
     setAnalyseError('')
+    if (!urlInput.trim()) setSourceUrl('')
     const res = await fetch('/api/adapt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

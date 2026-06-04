@@ -20,7 +20,7 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [planModal, setPlanModal] = useState<{ recipe: Recipe; date: string; mealType: MealType } | null>(null)
+  const [planModal, setPlanModal] = useState<{ recipe: Recipe; date: string; mealType: MealType; error?: string } | null>(null)
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
 
@@ -42,7 +42,7 @@ export default function SavedPage() {
   async function addToPlan() {
     if (!planModal) return
     setAddingToPlan(true)
-    await fetch('/api/plan', {
+    const res = await fetch('/api/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -53,9 +53,13 @@ export default function SavedPage() {
       }),
     })
     setAddingToPlan(false)
-    setPlanAdded(planModal.recipe.id)
-    setPlanModal(null)
-    setTimeout(() => setPlanAdded(null), 2500)
+    if (res.ok) {
+      setPlanAdded(planModal.recipe.id)
+      setPlanModal(null)
+      setTimeout(() => setPlanAdded(null), 2500)
+    } else {
+      setPlanModal(m => m ? { ...m, error: 'Failed to add — try again' } : null)
+    }
   }
 
   function openPlanModal(recipe: Recipe) {
@@ -212,6 +216,10 @@ export default function SavedPage() {
                 </div>
               </div>
             </div>
+
+            {planModal.error && (
+              <p className="text-xs text-red-500 mb-3">{planModal.error}</p>
+            )}
 
             <button
               onClick={addToPlan}
