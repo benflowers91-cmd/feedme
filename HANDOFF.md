@@ -257,3 +257,67 @@ npm run test:watch  # watch mode for development
 - [ ] Shopping list: no copy/share to notes app (see SCOPE_SHOPPING_INTEGRATIONS.md)
 - [ ] No recipe edit — must delete and re-adapt to change a saved recipe
 - [ ] Supabase has no RLS policies — safe for personal use, would need RLS before sharing with other users
+
+---
+
+## Considered next steps
+
+Scoped ideas to build next, roughly ordered by effort.
+
+---
+
+### 1. "Adapt another recipe" button on the Adapt page
+**What:** After saving an adapted recipe, the page shows a success state but offers no quick way to start again — user has to navigate away and back to reset it. A "Adapt another recipe" button at the bottom of the success state would call `resetState()` and return to the input step.  
+**Effort:** Small — single button, clear local state (urlInput, recipeText, sourceUrl, result, selections, saved).  
+**Files:** `app/adapt/page.tsx` only.
+
+---
+
+### 2. Improve URL scrape hit rate
+**What:** Many recipe sites either block scraping or don't use schema.org JSON-LD markup (NYT Cooking, YouTube, most food influencer blogs). Two improvements:
+- **Site allowlist** — in `app/api/scrape/route.ts`, check the URL's hostname against a list of known-good sites (BBC Good Food, MOB, Ottolenghi, Serious Eats, etc.) before attempting. If the site isn't on the list, return a friendly message rather than a timeout.
+- **Block obvious non-recipes** — reject YouTube, Instagram, TikTok, Pinterest, Twitter URLs immediately with "This doesn't look like a recipe page."
+
+The allowlist lives in `lib/scrape-utils.ts` alongside the existing extraction logic.  
+**Effort:** Small-medium. The allowlist needs curating — start with ~15 sites that are confirmed to work.  
+**Files:** `lib/scrape-utils.ts`, `app/api/scrape/route.ts`.
+
+---
+
+### 3. Dietary profile / allergy customisation
+**What:** The FODMAP system prompt in `lib/fodmap-prompt.ts` currently hardcodes "moderate FODMAP sensitivity + shellfish allergy." If the app is used by different household members or the profile changes, the substitution suggestions will be wrong.  
+Replace the hardcoded profile with a user-configurable dietary profile stored in Supabase (a `user_profiles` table or a `profile` JSONB column on users). The Claude routes read the profile at request time and inject it into the system prompt.  
+**Scope includes:** a settings page (`/settings`) with toggles/text inputs for FODMAP sensitivity level, named allergies, and any additional restrictions (dairy-free, vegan, etc.).  
+**Effort:** Medium. Schema change, new settings page, update both Claude routes to pull profile.  
+**Files:** `schema.sql`, `lib/fodmap-prompt.ts`, `app/api/adapt/route.ts`, `app/api/suggest/route.ts`, new `app/settings/page.tsx`.
+
+---
+
+### 4. Smart shopping list aggregator
+**What:** The current "Generate from plan" feature pulls ingredients from the week's recipes and deduplicates by exact name match. It doesn't handle near-duplicates or unit differences — so a plan with three recipes calling for different tomato varieties produces three separate line items instead of one consolidated buy.  
+The idea: after generating from plan, run a second Claude call that takes the raw ingredient list and returns a consolidated version — collapsing similar items into the most versatile option with a combined quantity (e.g. "8 vine tomatoes, 8 plum tomatoes, 4 cherry tomatoes" → "20 cherry tomatoes").  
+**Approach:** New API route `/api/shopping/consolidate` (POST, takes `items[]`, returns consolidated `items[]`). A "Consolidate" button on the shopping page triggers it after generation.  
+**Effort:** Medium. Claude call with tool_use schema (same pattern as adapt/suggest). The tricky part is the consolidation prompt — it needs to be specific about FODMAP-safe substitution logic (e.g. don't consolidate a safe item into an avoid item).  
+**Files:** New `app/api/shopping/consolidate/route.ts`, `app/shopping/page.tsx`.
+
+---
+
+### 5. Supermarket trolley integration
+**What:** Export the shopping list directly to a supermarket's online trolley (Ocado, Tesco, Sainsbury's) so items can be ordered without re-typing. Each supermarket has a different approach:
+- **Ocado** has an unofficial deep-link format (`ocado.com/search?q=<item>`) — not a true cart add, but opens item search in a new tab per ingredient. Simple and requires no API key.
+- **Tesco** and **Sainsbury's** don't have public APIs for cart injection. Workarounds involve browser extensions or copy-to-clipboard in a format the supermarket's app can import (neither is clean).
+
+Realistic near-term option: a "Copy for Ocado" button that opens each item as a new Ocado search tab, or a formatted plaintext export the user pastes into a notes app (see `SCOPE_SHOPPING_INTEGRATIONS.md`).  
+**Effort:** Small for the copy/export approach; large (and possibly fragile) for true cart injection.  
+**Files:** `app/shopping/page.tsx`, possibly a new utility in `lib/`.
+
+---
+
+### 6. Faster FODMAP analysis
+**What:** The adapt flow takes a few seconds because it sends the full recipe text to Claude and waits for a complete analysis. Two options to speed it up:
+- **Prompt caching** is already enabled on the system prompt (the FODMAP guide). The main latency is in the response, not the input — so caching gives limited further benefit here.
+- **Streaming** — use `anthropic.messages.stream()` instead of `messages.create()` and stream the tool_use response to the client. The user sees ingredient results appearing progressively rather than waiting for the full response. This requires switching `app/api/adapt/route.ts` to return a `ReadableStream` and updating `app/adapt/page.tsx` to consume it.
+- **Haiku model** — switch `app/api/adapt/route.ts` to `claude-haiku-4-5` for significantly faster (and cheaper) responses. Trade-off: Haiku is less precise on nuanced FODMAP judgements than Sonnet.
+
+**Recommendation:** Try Haiku first (one-line model change) and evaluate quality. If quality is acceptable, it's the lowest-effort win. Streaming is the highest-effort but best UX improvement.  
+**Files:** `app/api/adapt/route.ts` (model change or streaming), `app/adapt/page.tsx` (streaming consumer).
