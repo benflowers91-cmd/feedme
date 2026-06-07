@@ -13,6 +13,7 @@ export default function ShoppingPage() {
   const [generating, setGenerating] = useState(false)
   const [consolidating, setConsolidating] = useState(false)
   const [clearingAll, setClearingAll] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
   const [mutationError, setMutationError] = useState('')
 
   useEffect(() => {
@@ -181,6 +182,27 @@ export default function ShoppingPage() {
     }
   }
 
+  function formatListForExport(): string {
+    const lines = items.filter(i => !i.is_checked).map(i => `- ${i.name}`)
+    return 'Shopping list\n\n' + lines.join('\n')
+  }
+
+  async function handleExport() {
+    const text = formatListForExport()
+    if (navigator.share) {
+      await navigator.share({ title: 'Shopping list', text })
+    } else {
+      await navigator.clipboard.writeText(text)
+      setCopyState('copied')
+      setTimeout(() => setCopyState('idle'), 2000)
+    }
+  }
+
+  function tescoSearchUrl(itemName: string): string {
+    const cleaned = itemName.replace(/^\d+(\.\d+)?\s*(g|kg|ml|l|x)?\s+/i, '').trim()
+    return `https://www.tesco.com/groceries/en-GB/search?query=${encodeURIComponent(cleaned)}`
+  }
+
   async function consolidateList() {
     const uncheckedNames = items.filter(i => !i.is_checked).map(i => i.name)
     if (uncheckedNames.length < 2) return
@@ -234,6 +256,11 @@ export default function ShoppingPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-gray-800">Shopping list</h1>
         <div className="flex items-center gap-3">
+          {unchecked.length > 0 && (
+            <button onClick={handleExport} className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors">
+              {copyState === 'copied' ? 'Copied!' : 'Export'}
+            </button>
+          )}
           {checked.length > 0 && (
             <button onClick={clearChecked} className="text-xs text-gray-400 hover:text-gray-600 font-medium">
               Clear done
@@ -304,6 +331,14 @@ export default function ShoppingPage() {
               />
               <span className="text-sm text-gray-800 flex-1">{item.name}</span>
               {item.quantity && <span className="text-xs text-gray-400">{item.quantity}</span>}
+              <a
+                href={tescoSearchUrl(item.name)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-gray-300 hover:text-blue-500 shrink-0 font-medium transition-colors"
+              >
+                Tesco
+              </a>
               <button onClick={() => deleteItem(item.id)} className="text-gray-200 hover:text-red-400 shrink-0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
