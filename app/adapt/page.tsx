@@ -100,6 +100,18 @@ function AdaptPageInner() {
     }
   }
 
+  function resetState() {
+    setUrlInput('')
+    setRecipeText('')
+    setSourceUrl('')
+    setResult(null)
+    setSelections({})
+    setSaved(false)
+    setFetchError('')
+    setAnalyseError('')
+    setStep('input')
+  }
+
   async function saveRecipe() {
     if (!result) return
     setSaving(true)
@@ -239,6 +251,15 @@ function AdaptPageInner() {
         >
           {saved ? '✓ Saved to your recipes' : saving ? 'Saving...' : 'Save adapted recipe'}
         </button>
+
+        {saved && (
+          <button
+            onClick={resetState}
+            className="w-full mt-3 py-3 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Adapt another recipe
+          </button>
+        )}
       </div>
     )
   }
