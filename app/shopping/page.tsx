@@ -199,7 +199,11 @@ export default function ShoppingPage() {
   }
 
   function tescoSearchUrl(itemName: string): string {
-    const cleaned = itemName.replace(/^\d+(\.\d+)?\s*(g|kg|ml|l|x)?\s+/i, '').trim()
+    const cleaned = itemName
+      .replace(/^\d+(\.\d+)?\s*(g|kg|ml|l|oz|lb|lbs|tbsp|tsp|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|x)\s+/i, '')
+      .replace(/^of\s+/i, '')
+      .replace(/^an?\s+/i, '')
+      .trim()
     return `https://www.tesco.com/groceries/en-GB/search?query=${encodeURIComponent(cleaned)}`
   }
 

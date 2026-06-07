@@ -42,6 +42,7 @@ Rules:
 - Use plain, readable text (no units jargon). Keep it concise.
 - Return only the consolidated items — no extra explanation.
 - Preserve FODMAP-safe substitutions: never consolidate a safe ingredient into a high-FODMAP one.
+- Use UK English spelling and ingredient names throughout: aubergine (not eggplant), courgette (not zucchini), coriander (not cilantro), spring onion (not scallion), prawns (not shrimp), rocket (not arugula), plain flour (not all-purpose flour), pepper (not bell pepper), chips (not fries), biscuits (not cookies).
 
 SHOPPING LIST:
 ${itemList}`
