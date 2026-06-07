@@ -199,12 +199,21 @@ export default function ShoppingPage() {
   }
 
   function tescoSearchUrl(itemName: string): string {
-    const cleaned = itemName
-      .replace(/^\d+(\.\d+)?\s*(g|kg|ml|l|oz|lb|lbs|tbsp|tsp|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|x)\s+/i, '')
-      .replace(/^of\s+/i, '')
-      .replace(/^an?\s+/i, '')
-      .trim()
-    return `https://www.tesco.com/groceries/en-GB/search?query=${encodeURIComponent(cleaned)}`
+    let s = itemName.trim()
+    let prev = ''
+    while (prev !== s) {
+      prev = s
+      s = s
+        .replace(/^\d+\/\d+\s*/i, '')
+        .replace(/^\d+(\.\d+)?\s*/i, '')
+        .replace(/^(g|kg|ml|cl|l|oz|lbs?|tbsps?|tsps?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?)\s*/i, '')
+        .replace(/^(x|×)\s*/i, '')
+        .replace(/^of\s*/i, '')
+        .replace(/^an?\s*/i, '')
+        .replace(/^\(.*?\)\s*/i, '')
+        .trim()
+    }
+    return `https://www.tesco.com/groceries/en-GB/search?query=${encodeURIComponent(s)}`
   }
 
   async function consolidateList() {
