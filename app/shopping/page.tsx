@@ -206,7 +206,7 @@ export default function ShoppingPage() {
       s = s
         .replace(/^\d+\/\d+\s*/i, '')
         .replace(/^\d+(\.\d+)?\s*/i, '')
-        .replace(/^(g|kg|ml|cl|l|oz|lbs?|tbsps?|tsps?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?)\s*/i, '')
+        .replace(/^(tablespoons?|teaspoons?|kilograms?|grams?|millilitres?|milliliters?|centilitres?|centiliters?|litres?|liters?|ounces?|pounds?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?|tbsps?|tsps?|kg|ml|cl|oz|lbs?|g|l)\s*/i, '')
         .replace(/^(x|×)\s*/i, '')
         .replace(/^of\s*/i, '')
         .replace(/^an?\s*/i, '')
