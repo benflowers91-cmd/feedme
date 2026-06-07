@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { recipe_text } = await request.json()
+  const { recipe_text, dietary_requirements } = await request.json()
   if (!recipe_text?.trim()) {
     return Response.json({ error: 'recipe_text is required' }, { status: 400 })
   }
@@ -57,8 +57,12 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Recipe is too long — try trimming it to just the ingredients and method' }, { status: 400 })
   }
 
-  const userMessage = `Analyse the following recipe for FODMAP safety. For each ingredient, assess its FODMAP status and provide substitution options for any problematic ingredients.
+  const dietaryNote = Array.isArray(dietary_requirements) && dietary_requirements.length > 0
+    ? `\nADDITIONAL DIETARY REQUIREMENTS (treat as hard constraints — never suggest ingredients that violate these):\n${dietary_requirements.map((r: string) => `- ${r}`).join('\n')}\n`
+    : ''
 
+  const userMessage = `Analyse the following recipe for FODMAP safety. For each ingredient, assess its FODMAP status and provide substitution options for any problematic ingredients.
+${dietaryNote}
 Rules:
 - Every ingredient MUST have a substitution_options array. Use an empty array for safe/unknown ingredients.
 - For avoid ingredients: provide 1–3 concrete, specific substitutes with quantities where possible.

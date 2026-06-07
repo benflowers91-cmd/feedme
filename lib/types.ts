@@ -33,6 +33,7 @@ export interface Recipe {
   fodmap_notes: string
   is_saved: boolean
   is_favourite: boolean
+  tags: string[]
   created_at: string
 }
 

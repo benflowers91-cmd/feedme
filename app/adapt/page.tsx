@@ -41,12 +41,28 @@ function AdaptPageInner() {
   const [step, setStep] = useState<'input' | 'analyse'>('input')
   const [result, setResult] = useState<AnalysedRecipe | null>(null)
   const [selections, setSelections] = useState<Record<number, number | 'keep'>>({})
+  const [dietaryRequirements, setDietaryRequirements] = useState<string[]>(['Shellfish allergy'])
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
   const [analysing, setAnalysing] = useState(false)
   const [analyseError, setAnalyseError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const DIETARY_OPTIONS = [
+    'Shellfish allergy',
+    'Nut allergy',
+    'Dairy-free',
+    'Vegan',
+    'Vegetarian',
+    'Gluten-free',
+  ]
+
+  function toggleDietary(option: string) {
+    setDietaryRequirements(prev =>
+      prev.includes(option) ? prev.filter(r => r !== option) : [...prev, option]
+    )
+  }
 
   useEffect(() => {
     const url = searchParams.get('url')
@@ -79,7 +95,7 @@ function AdaptPageInner() {
     const res = await fetch('/api/adapt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipe_text: recipeText }),
+      body: JSON.stringify({ recipe_text: recipeText, dietary_requirements: dietaryRequirements }),
     })
     const data = await res.json()
     setAnalysing(false)
@@ -109,6 +125,7 @@ function AdaptPageInner() {
     setSaved(false)
     setFetchError('')
     setAnalyseError('')
+    setDietaryRequirements(['Shellfish allergy'])
     setStep('input')
   }
 
@@ -307,6 +324,28 @@ function AdaptPageInner() {
         rows={8}
         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-300 mb-3"
       />
+
+      <div className="mb-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Dietary requirements</p>
+        <div className="flex flex-wrap gap-1.5">
+          {DIETARY_OPTIONS.map(option => {
+            const active = dietaryRequirements.includes(option)
+            return (
+              <button
+                key={option}
+                onClick={() => toggleDietary(option)}
+                className={`text-xs rounded-full px-3 py-1.5 border transition-colors ${
+                  active
+                    ? 'bg-gray-700 border-gray-700 text-white'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                }`}
+              >
+                {option}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       <button
         onClick={analyseRecipe}

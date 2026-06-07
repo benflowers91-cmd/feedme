@@ -11,6 +11,7 @@ export default function ShoppingPage() {
   const [newItem, setNewItem] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [consolidating, setConsolidating] = useState(false)
   const [clearingAll, setClearingAll] = useState(false)
   const [mutationError, setMutationError] = useState('')
 
@@ -180,6 +181,48 @@ export default function ShoppingPage() {
     }
   }
 
+  async function consolidateList() {
+    const uncheckedNames = items.filter(i => !i.is_checked).map(i => i.name)
+    if (uncheckedNames.length < 2) return
+    setConsolidating(true)
+    setMutationError('')
+    try {
+      const res = await fetch('/api/shopping/consolidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: uncheckedNames }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setMutationError(data.error ?? 'Failed to consolidate — try again')
+        return
+      }
+      const { items: consolidated } = await res.json()
+
+      // Delete all unchecked items then re-add the consolidated ones
+      const uncheckedIds = items.filter(i => !i.is_checked).map(i => i.id)
+      await Promise.all(uncheckedIds.map(id =>
+        fetch(`/api/shopping?id=${id}`, { method: 'DELETE' })
+      ))
+
+      const addRes = await fetch('/api/shopping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(consolidated.map((name: string) => ({ name }))),
+      })
+      if (!addRes.ok) {
+        setMutationError('Failed to save consolidated list — refresh and try again')
+        return
+      }
+      const newItems = await addRes.json()
+      setItems(prev => [...newItems, ...prev.filter(i => i.is_checked)])
+    } catch {
+      setMutationError('Something went wrong — check your connection')
+    } finally {
+      setConsolidating(false)
+    }
+  }
+
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
@@ -215,10 +258,20 @@ export default function ShoppingPage() {
       <button
         onClick={generateFromPlan}
         disabled={generating}
-        className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors mb-4"
+        className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors mb-2"
       >
         {generating ? 'Generating...' : '📅 Generate from this week\'s plan'}
       </button>
+
+      {unchecked.length >= 2 && (
+        <button
+          onClick={consolidateList}
+          disabled={consolidating}
+          className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-2.5 text-sm font-medium hover:bg-purple-100 disabled:opacity-50 transition-colors mb-4"
+        >
+          {consolidating ? 'Consolidating...' : '✨ Consolidate list'}
+        </button>
+      )}
 
       <form onSubmit={addItem} className="flex gap-2 mb-4">
         <input

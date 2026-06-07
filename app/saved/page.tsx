@@ -34,6 +34,9 @@ export default function SavedPage() {
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'favourites'>('all')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({})
+  const [savingTags, setSavingTags] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -61,6 +64,36 @@ export default function SavedPage() {
     } finally {
       setToggling(null)
     }
+  }
+
+  async function updateTags(recipe: Recipe, newTags: string[]) {
+    setSavingTags(recipe.id)
+    setRecipes(prev => prev.map(r => r.id === recipe.id ? { ...r, tags: newTags } : r))
+    try {
+      await fetch(`/api/recipes?id=${recipe.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      })
+    } catch {
+      setRecipes(prev => prev.map(r => r.id === recipe.id ? { ...r, tags: recipe.tags } : r))
+    } finally {
+      setSavingTags(null)
+    }
+  }
+
+  function addTag(recipe: Recipe) {
+    const raw = (newTagInputs[recipe.id] ?? '').trim().toLowerCase()
+    if (!raw || (recipe.tags ?? []).includes(raw)) return
+    const newTags = [...(recipe.tags ?? []), raw]
+    setNewTagInputs(prev => ({ ...prev, [recipe.id]: '' }))
+    updateTags(recipe, newTags)
+  }
+
+  function removeTag(recipe: Recipe, tag: string) {
+    const newTags = (recipe.tags ?? []).filter(t => t !== tag)
+    updateTags(recipe, newTags)
+    if (tagFilter === tag) setTagFilter(null)
   }
 
   async function deleteRecipe(id: string) {
@@ -113,40 +146,68 @@ export default function SavedPage() {
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
+  const allTags = [...new Set(recipes.flatMap(r => r.tags ?? []))].sort()
   const favouriteCount = recipes.filter(r => r.is_favourite).length
-  const displayedRecipes = (filter === 'favourites' ? recipes.filter(r => r.is_favourite) : [...recipes].sort((a, b) => {
-    if (a.is_favourite === b.is_favourite) return 0
-    return a.is_favourite ? -1 : 1
-  }))
+
+  const displayedRecipes = recipes
+    .filter(r => filter === 'favourites' ? r.is_favourite : true)
+    .filter(r => tagFilter ? (r.tags ?? []).includes(tagFilter) : true)
+    .sort((a, b) => {
+      if (filter !== 'favourites') {
+        if (a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
+      }
+      return 0
+    })
 
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-800 mb-4">Saved recipes</h1>
 
-      {/* Filter tabs */}
       {recipes.length > 0 && (
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setFilter('all')}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-              filter === 'all'
-                ? 'bg-gray-800 text-white'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
-          >
-            All ({recipes.length})
-          </button>
-          <button
-            onClick={() => setFilter('favourites')}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors flex items-center gap-1 ${
-              filter === 'favourites'
-                ? 'bg-pink-500 text-white'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
-          >
-            <HeartIcon filled={filter === 'favourites'} />
-            Favourites ({favouriteCount})
-          </button>
+        <div className="mb-4 space-y-2">
+          {/* Favourites / All filter */}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setFilter('all')}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                filter === 'all'
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              All ({recipes.length})
+            </button>
+            <button
+              onClick={() => setFilter('favourites')}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors flex items-center gap-1 ${
+                filter === 'favourites'
+                  ? 'bg-pink-500 text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              <HeartIcon filled={filter === 'favourites'} />
+              Favourites ({favouriteCount})
+            </button>
+          </div>
+
+          {/* Tag filters */}
+          {allTags.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors capitalize ${
+                    tagFilter === tag
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -157,6 +218,11 @@ export default function SavedPage() {
           <p className="text-sm text-gray-400 mb-1">No favourites yet.</p>
           <p className="text-xs text-gray-400">Tap the heart on recipes you&apos;ve tried and loved.</p>
         </div>
+      ) : displayedRecipes.length === 0 && tagFilter ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-400 mb-1">No recipes tagged &ldquo;{tagFilter}&rdquo;.</p>
+          <button onClick={() => setTagFilter(null)} className="text-xs text-blue-600 hover:underline">Clear filter</button>
+        </div>
       ) : displayedRecipes.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-sm text-gray-400 mb-2">No saved recipes yet.</p>
@@ -166,6 +232,7 @@ export default function SavedPage() {
         <div className="space-y-3">
           {displayedRecipes.map(recipe => {
             const isExpanded = expandedId === recipe.id
+            const tags = recipe.tags ?? []
             return (
               <div key={recipe.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <button
@@ -184,7 +251,7 @@ export default function SavedPage() {
                     {recipe.fodmap_notes && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{recipe.fodmap_notes}</p>
                     )}
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
                       <span className="text-xs text-gray-400">
                         {recipe.ingredients?.length ?? 0} ingredients
                       </span>
@@ -199,6 +266,11 @@ export default function SavedPage() {
                           source ↗
                         </a>
                       )}
+                      {tags.map(tag => (
+                        <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 capitalize">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 mt-0.5">
@@ -227,6 +299,46 @@ export default function SavedPage() {
 
                 {isExpanded && (
                   <div className="border-t border-gray-50 px-4 pb-4 space-y-4 pt-3">
+                    {/* Tags management */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {tags.map(tag => (
+                          <span key={tag} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 capitalize">
+                            {tag}
+                            <button
+                              onClick={() => removeTag(recipe, tag)}
+                              disabled={savingTags === recipe.id}
+                              className="hover:text-blue-800 ml-0.5 leading-none"
+                              aria-label={`Remove tag ${tag}`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {tags.length === 0 && (
+                          <span className="text-xs text-gray-400">No tags yet</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Add tag..."
+                          value={newTagInputs[recipe.id] ?? ''}
+                          onChange={e => setNewTagInputs(prev => ({ ...prev, [recipe.id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && addTag(recipe)}
+                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        />
+                        <button
+                          onClick={() => addTag(recipe)}
+                          disabled={!(newTagInputs[recipe.id] ?? '').trim() || savingTags === recipe.id}
+                          className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Ingredients</p>
                       <ul className="space-y-1">

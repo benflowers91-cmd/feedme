@@ -1,3 +1,50 @@
+export const TRUSTED_RECIPE_DOMAINS = [
+  'bbcgoodfood.com',
+  'mob.co.uk',
+  'ottolenghi.co.uk',
+  'seriouseats.com',
+  'bonappetit.com',
+  'theguardian.com',
+  'deliciousmagazine.co.uk',
+  'jamieoliver.com',
+  'nigella.com',
+  'allrecipes.com',
+  'food.com',
+  'simplyrecipes.com',
+  'cookinglight.com',
+  'epicurious.com',
+  'themodernproper.com',
+  'halfbakedharvest.com',
+  'minimalistbaker.com',
+  'skinnytaste.com',
+  'recipetineats.com',
+  'budgetbytes.com',
+]
+
+export const BLOCKED_RECIPE_DOMAINS = [
+  'youtube.com',
+  'youtu.be',
+  'instagram.com',
+  'tiktok.com',
+  'pinterest.com',
+  'twitter.com',
+  'x.com',
+  'facebook.com',
+  'reddit.com',
+]
+
+export function classifyUrl(url: string): 'trusted' | 'blocked' | 'unknown' {
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return 'unknown'
+  }
+  if (BLOCKED_RECIPE_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d))) return 'blocked'
+  if (TRUSTED_RECIPE_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d))) return 'trusted'
+  return 'unknown'
+}
+
 type LdObject = Record<string, unknown>
 
 export function extractRecipeFromHtml(html: string): { title: string; recipe_text: string } | null {

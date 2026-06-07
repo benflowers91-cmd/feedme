@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { extractRecipeFromHtml } from '@/lib/scrape-utils'
+import { extractRecipeFromHtml, classifyUrl } from '@/lib/scrape-utils'
 
 const MAX_BYTES = 2 * 1024 * 1024 // 2MB
 
@@ -23,6 +23,14 @@ export async function POST(request: Request) {
     }
   } catch {
     return Response.json({ error: 'Invalid URL' }, { status: 400 })
+  }
+
+  const urlClass = classifyUrl(url)
+  if (urlClass === 'blocked') {
+    return Response.json(
+      { error: "This site doesn't host recipe text — try pasting the recipe instead" },
+      { status: 422 }
+    )
   }
 
   const controller = new AbortController()

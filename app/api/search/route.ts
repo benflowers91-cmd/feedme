@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { TRUSTED_RECIPE_DOMAINS } from '@/lib/scrape-utils'
 
 export interface RecipeSearchResult {
   title: string
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
         max_results: 8,
         include_answer: false,
         include_raw_content: false,
+        include_domains: TRUSTED_RECIPE_DOMAINS,
       }),
     })
 

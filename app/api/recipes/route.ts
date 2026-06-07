@@ -48,15 +48,28 @@ export async function PATCH(request: Request) {
   const id = searchParams.get('id')
   if (!id) return Response.json({ error: 'Missing id' }, { status: 400 })
 
-  const { is_favourite } = await request.json()
-  if (typeof is_favourite !== 'boolean') {
-    return Response.json({ error: 'is_favourite must be a boolean' }, { status: 400 })
+  const body = await request.json()
+  const update: Record<string, unknown> = {}
+  if ('is_favourite' in body) {
+    if (typeof body.is_favourite !== 'boolean') {
+      return Response.json({ error: 'is_favourite must be a boolean' }, { status: 400 })
+    }
+    update.is_favourite = body.is_favourite
+  }
+  if ('tags' in body) {
+    if (!Array.isArray(body.tags) || !body.tags.every((t: unknown) => typeof t === 'string')) {
+      return Response.json({ error: 'tags must be an array of strings' }, { status: 400 })
+    }
+    update.tags = body.tags
+  }
+  if (Object.keys(update).length === 0) {
+    return Response.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
   const supabase = createServerClient()
   const { data, error } = await supabase
     .from('recipes')
-    .update({ is_favourite })
+    .update(update)
     .eq('id', id)
     .eq('user_id', session.user.email)
     .select()
