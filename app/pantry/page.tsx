@@ -12,6 +12,8 @@ const STATUS_STYLES: Record<FodmapStatus, string> = {
   unknown: 'bg-gray-100 text-gray-500',
 }
 
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+
 interface SuggestedItem {
   name: string
   quantity: string
@@ -35,6 +37,7 @@ export default function PantryPage() {
   const [scanError, setScanError] = useState('')
   const [suggested, setSuggested] = useState<SuggestedItem[]>([])
   const [addingBulk, setAddingBulk] = useState(false)
+  const [newlyAddedIds, setNewlyAddedIds] = useState<Set<string>>(new Set())
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -83,43 +86,66 @@ export default function PantryPage() {
         return
       }
       setItems(prev => prev.filter(i => i.id !== id))
+      setNewlyAddedIds(prev => { const next = new Set(prev); next.delete(id); return next })
     } catch {
       setMutationError('Failed to remove item — check your connection')
     }
   }
 
   async function handlePhotoSelected(file: File) {
+    // Client-side size guard before sending anything
+    if (file.size > MAX_FILE_BYTES) {
+      setScanError(`Image is too large (${(file.size / 1e6).toFixed(1)} MB) — please use a photo under 10 MB`)
+      return
+    }
+
     setAnalyzing(true)
     setScanError('')
     setSuggested([])
+
+    let data: { items?: unknown; error?: string }
     try {
       const formData = new FormData()
       formData.append('image', file)
       const res = await fetch('/api/pantry/analyze', { method: 'POST', body: formData })
+      data = await res.json()
       if (!res.ok) {
-        const data = await res.json()
-        setScanError(data.error ?? 'Failed to analyse photo — try again')
+        setScanError(data.error ?? `Server error ${res.status} — please try again`)
         return
       }
-      const data = await res.json()
-      const rawItems: Array<{ name: string; quantity?: string; fodmap_status: FodmapStatus }> = data.items ?? []
-      setSuggested(rawItems.map(item => ({
-        name: item.name,
-        quantity: item.quantity ?? '',
-        fodmap_status: item.fodmap_status,
-        selected: true,
-      })))
-    } catch {
-      setScanError('Failed to analyse photo — check your connection')
+    } catch (err: unknown) {
+      // Only reaches here on network failure (no response at all)
+      const msg = err instanceof Error ? err.message : String(err)
+      setScanError(`Network error — could not reach the server: ${msg}`)
+      return
     } finally {
       setAnalyzing(false)
     }
+
+    if (!Array.isArray(data.items)) {
+      setScanError(`Unexpected response from server — ${JSON.stringify(data)}`)
+      return
+    }
+
+    const rawItems = data.items as Array<{ name: string; quantity?: string; fodmap_status: FodmapStatus }>
+    if (rawItems.length === 0) {
+      setScanError("Claude couldn't identify any food items in this photo — try a clearer or closer shot")
+      return
+    }
+
+    setSuggested(rawItems.map(item => ({
+      name: item.name,
+      quantity: item.quantity ?? '',
+      fodmap_status: item.fodmap_status,
+      selected: true,
+    })))
   }
 
   async function handleAddSuggested() {
     const toAdd = suggested.filter(i => i.selected && i.name.trim())
     if (toAdd.length === 0) return
     setAddingBulk(true)
+    setScanError('')
     try {
       const results = await Promise.all(
         toAdd.map(item =>
@@ -136,11 +162,17 @@ export default function PantryPage() {
       )
       const newItems = results.filter(Boolean) as PantryItem[]
       setItems(prev => [...prev, ...newItems].sort((a, b) => a.name.localeCompare(b.name)))
+
+      // Mark newly added items so they're highlighted in the list
+      const ids = new Set(newItems.map(i => i.id))
+      setNewlyAddedIds(ids)
+      setTimeout(() => setNewlyAddedIds(new Set()), 8000)
+
       setShowScan(false)
       setSuggested([])
-      setScanError('')
-    } catch {
-      setScanError('Failed to add items — check your connection')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setScanError(`Failed to add items — ${msg}`)
     } finally {
       setAddingBulk(false)
     }
@@ -254,7 +286,11 @@ export default function PantryPage() {
                   <span className="text-sm font-medium text-gray-700">Choose from gallery</span>
                 </button>
               </div>
-              {scanError && <p className="text-xs text-red-500 mt-3">{scanError}</p>}
+              {scanError && (
+                <div className="mt-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <p className="text-xs text-red-600 font-mono break-all">{scanError}</p>
+                </div>
+              )}
             </>
           )}
 
@@ -314,7 +350,11 @@ export default function PantryPage() {
                   </li>
                 ))}
               </ul>
-              {scanError && <p className="text-xs text-red-500 mb-3">{scanError}</p>}
+              {scanError && (
+                <div className="mb-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <p className="text-xs text-red-600 font-mono break-all">{scanError}</p>
+                </div>
+              )}
               <button
                 onClick={handleAddSuggested}
                 disabled={addingBulk || selectedCount === 0}
@@ -350,28 +390,35 @@ export default function PantryPage() {
         <p className="text-sm text-gray-400 text-center py-8">Your pantry is empty — add some ingredients above.</p>
       ) : (
         <ul className="space-y-2">
-          {items.map(item => (
-            <li key={item.id} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100">
-              <div>
-                <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                {item.quantity && <span className="text-xs text-gray-400 ml-1.5">{item.quantity}</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[item.fodmap_status as FodmapStatus]}`}>
-                  {item.fodmap_status}
-                </span>
-                <button
-                  onClick={() => deleteItem(item.id)}
-                  className="text-gray-300 hover:text-red-400 transition-colors p-1"
-                  aria-label="Remove"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </li>
-          ))}
+          {items.map(item => {
+            const isNew = newlyAddedIds.has(item.id)
+            return (
+              <li
+                key={item.id}
+                className={`flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm border transition-colors ${isNew ? 'border-l-4 border-l-green-400 border-green-100' : 'border-gray-100'}`}
+              >
+                <div>
+                  <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                  {item.quantity && <span className="text-xs text-gray-400 ml-1.5">{item.quantity}</span>}
+                  {isNew && <span className="text-xs bg-green-100 text-green-600 rounded px-1.5 py-0.5 ml-2 font-medium">New</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[item.fodmap_status as FodmapStatus]}`}>
+                    {item.fodmap_status}
+                  </span>
+                  <button
+                    onClick={() => deleteItem(item.id)}
+                    className="text-gray-300 hover:text-red-400 transition-colors p-1"
+                    aria-label="Remove"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

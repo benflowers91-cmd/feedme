@@ -5,6 +5,8 @@ import { FODMAP_SYSTEM_PROMPT } from '@/lib/fodmap-prompt'
 
 const anthropic = new Anthropic()
 
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+
 const ANALYZE_TOOL: Anthropic.Tool = {
   name: 'identify_pantry_items',
   description: 'Return a structured list of food ingredients and pantry items identified in the image',
@@ -42,22 +44,45 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     file = formData.get('image') as File | null
-  } catch {
-    return Response.json({ error: 'Invalid request — expected multipart/form-data' }, { status: 400 })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return Response.json(
+      { error: `Could not read multipart form data — request may be malformed (${msg})` },
+      { status: 400 }
+    )
   }
 
   if (!file) {
-    return Response.json({ error: 'No image provided' }, { status: 400 })
+    return Response.json({ error: "Form field 'image' is missing from the request" }, { status: 400 })
   }
 
+  if (file.size > MAX_FILE_BYTES) {
+    return Response.json(
+      { error: `Image too large — maximum size is 10 MB. File received: ${(file.size / 1e6).toFixed(1)} MB` },
+      { status: 413 }
+    )
+  }
+
+  // Some mobile browsers send an empty file.type for camera captures — fall back to jpeg
+  const rawType = file.type || 'image/jpeg'
   const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  const mediaType = file.type as Anthropic.Base64ImageSource['media_type']
-  if (!validTypes.includes(file.type)) {
-    return Response.json({ error: 'Unsupported image type — use JPEG, PNG, GIF, or WebP' }, { status: 400 })
+  if (!validTypes.includes(rawType)) {
+    return Response.json(
+      { error: `Unsupported image type "${rawType}" — use JPEG, PNG, GIF, or WebP` },
+      { status: 400 }
+    )
   }
+  const mediaType = rawType as Anthropic.Base64ImageSource['media_type']
 
-  const buffer = await file.arrayBuffer()
-  const base64 = Buffer.from(buffer).toString('base64')
+  let base64: string
+  try {
+    const buffer = await file.arrayBuffer()
+    base64 = Buffer.from(buffer).toString('base64')
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('Pantry analyze — buffer read error:', err)
+    return Response.json({ error: `Failed to read image data — ${msg}` }, { status: 500 })
+  }
 
   try {
     const response = await anthropic.messages.create({
@@ -91,11 +116,32 @@ export async function POST(request: Request) {
 
     const toolBlock = response.content.find(b => b.type === 'tool_use')
     if (!toolBlock || toolBlock.type !== 'tool_use') {
-      return Response.json({ error: 'Unexpected response from Claude' }, { status: 500 })
+      const types = response.content.map(b => b.type).join(', ') || 'empty'
+      console.error('Pantry analyze — no tool_use block. Content types:', types)
+      return Response.json(
+        { error: `Claude returned no tool_use block — response content types: ${types}` },
+        { status: 500 }
+      )
     }
-    return Response.json(toolBlock.input)
-  } catch (err) {
-    console.error('Claude pantry analyze error:', err)
-    return Response.json({ error: 'Failed to analyse image — please try again' }, { status: 500 })
+
+    const input = toolBlock.input as { items?: unknown }
+    if (!Array.isArray(input.items)) {
+      console.error('Pantry analyze — malformed items in tool response:', JSON.stringify(input))
+      return Response.json(
+        { error: `Claude response missing 'items' array — raw response: ${JSON.stringify(input)}` },
+        { status: 500 }
+      )
+    }
+
+    return Response.json(input)
+  } catch (err: unknown) {
+    console.error('Pantry analyze — Claude API error:', err)
+    const anthropicErr = err as { status?: number; message?: string }
+    const status = anthropicErr.status ?? 'unknown'
+    const message = anthropicErr.message ?? String(err)
+    return Response.json(
+      { error: `Claude API error (${status}): ${message}` },
+      { status: 500 }
+    )
   }
 }
