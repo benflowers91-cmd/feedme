@@ -198,20 +198,28 @@ export default function ShoppingPage() {
     }
   }
 
+  const UNITS_PATTERN = 'tablespoons?|teaspoons?|kilograms?|grams?|millilitres?|milliliters?|centilitres?|centiliters?|litres?|liters?|ounces?|pounds?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?|tbsps?|tsps?|kg|ml|cl|oz|lbs?|g|l'
+
   function tescoSearchUrl(itemName: string): string {
     let s = itemName.trim()
     let prev = ''
     while (prev !== s) {
       prev = s
+      // Strip from the front
       s = s
         .replace(/^\d+\/\d+\s*/i, '')
         .replace(/^\d+(\.\d+)?\s*/i, '')
-        .replace(/^(tablespoons?|teaspoons?|kilograms?|grams?|millilitres?|milliliters?|centilitres?|centiliters?|litres?|liters?|ounces?|pounds?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?|tbsps?|tsps?|kg|ml|cl|oz|lbs?|g|l)\s*/i, '')
+        .replace(new RegExp(`^(${UNITS_PATTERN})\\s*`, 'i'), '')
         .replace(/^(x|×)\s*/i, '')
         .replace(/^of\s*/i, '')
         .replace(/^an?\s*/i, '')
         .replace(/^\(.*?\)\s*/i, '')
-        .trim()
+      // Strip from the end: trailing parentheticals like "(200g)" or "(approx 400ml)"
+      s = s.replace(/\s*\(.*?\)\s*$/i, '')
+      // Strip trailing quantity+unit like " 200g", ", 400ml", " x 2"
+      s = s.replace(new RegExp(`[,\\s]+(\\d+(\\.\\d+)?\\s*)?(${UNITS_PATTERN})\\s*$`, 'i'), '')
+      s = s.replace(/[,\s]+(x|×)\s*\d+\s*$/i, '')
+      s = s.trim()
     }
     return `https://www.tesco.com/groceries/en-GB/search?query=${encodeURIComponent(s)}`
   }

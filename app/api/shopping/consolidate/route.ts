@@ -44,6 +44,7 @@ Rules:
 - Preserve FODMAP-safe substitutions: never consolidate a safe ingredient into a high-FODMAP one.
 - Use UK English spelling and ingredient names throughout: aubergine (not eggplant), courgette (not zucchini), coriander (not cilantro), spring onion (not scallion), prawns (not shrimp), rocket (not arugula), plain flour (not all-purpose flour), pepper (not bell pepper), chips (not fries), biscuits (not cookies).
 - Convert US measurements to metric: 1 cup liquid → 240ml, 1 cup flour → 120g, 1 cup sugar → 200g, 1 cup rice → 185g, 1 oz → 28g, 1 lb → 450g. Keep tbsp and tsp as-is (used in UK). Use g and ml throughout.
+- Format every item with the quantity first, then the ingredient name — e.g. "400g chicken thighs", "2 red peppers", "300ml chicken stock", "1 tbsp olive oil". Never put the quantity at the end.
 
 SHOPPING LIST:
 ${itemList}`
