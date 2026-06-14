@@ -108,13 +108,25 @@ export default function PantryPage() {
       const formData = new FormData()
       formData.append('image', file)
       const res = await fetch('/api/pantry/analyze', { method: 'POST', body: formData })
-      data = await res.json()
+
+      try {
+        data = await res.json()
+      } catch {
+        // Server returned a non-JSON body — typically a proxy/platform size-limit rejection
+        setScanError(
+          res.status === 413
+            ? 'Image is too large for the server — please try a smaller or compressed photo'
+            : `Server error (${res.status}) — please try again`
+        )
+        return
+      }
+
       if (!res.ok) {
         setScanError(data.error ?? `Server error ${res.status} — please try again`)
         return
       }
     } catch (err: unknown) {
-      // Only reaches here on network failure (no response at all)
+      // Only reaches here when fetch itself throws (no response at all)
       const msg = err instanceof Error ? err.message : String(err)
       setScanError(`Network error — could not reach the server: ${msg}`)
       return
