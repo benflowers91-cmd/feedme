@@ -3,6 +3,7 @@ import { Geist } from 'next/font/google'
 import './globals.css'
 import { Providers } from '@/components/Providers'
 import { BottomNav } from '@/components/BottomNav'
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
 
 const geist = Geist({ subsets: ['latin'] })
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={geist.className}>
       <body className="bg-gray-50 min-h-screen">
         <Providers>
+          <ServiceWorkerRegistration />
           <main className="max-w-2xl mx-auto px-4 pt-4 pb-24">{children}</main>
           <BottomNav />
         </Providers>
