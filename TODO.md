@@ -16,6 +16,14 @@
   - Check whether the `/api/search` route is doing redundant work that could be trimmed.
   - **Bug:** Every fetch attempt now triggers a search for "fatoush" — likely a stale value stuck in `sessionStorage`, a React state initialiser reading from cache, or a `useEffect` firing with a persisted query on mount. Find where the initial query value is being read from and clear/guard it.
 
+## Saved Recipes
+
+- [ ] **Auto-tag saved recipes by meal type, cuisine, and effort**
+  Users should be able to tag saved recipes without doing it manually. Tags to generate: meal type (breakfast, lunch, dinner, snack), cuisine (e.g. Italian, Asian, Middle Eastern), and effort (quick, moderate, involved). Two possible trigger points to explore:
+  - **On save** — run tagging automatically when a recipe is saved, so tags are ready immediately.
+  - **On demand** — add a "Tag" or "Auto-tag" button on the saved recipes page that processes one or all saved recipes.
+  Tagging could be done via a short LLM prompt against the recipe title/snippet, or with a lightweight rules-based classifier if speed/cost is a concern. Tags should be stored alongside the saved recipe and be filterable on the saved page.
+
 ## Shopping List
 
 - [ ] **Consolidate feature should cross-reference the pantry**
