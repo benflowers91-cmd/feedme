@@ -23,7 +23,7 @@
 
 ## Shopping List
 
-- [ ] **Consolidate cross-references pantry**
+- [x] **Consolidate cross-references pantry**
   Pass the user's pantry to the consolidate Claude call alongside shopping items. Claude returns a `pantry_note` per item if it thinks the user already has it. UI shows a "you may have this" flag — nothing is auto-removed, user decides.
   - **Files:** `app/shopping/page.tsx`, `app/api/shopping/consolidate/route.ts`
 

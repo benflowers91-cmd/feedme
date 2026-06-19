@@ -15,6 +15,7 @@ export default function ShoppingPage() {
   const [clearingAll, setClearingAll] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
   const [mutationError, setMutationError] = useState('')
+  const [pantryNotes, setPantryNotes] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!session) return
@@ -221,6 +222,7 @@ export default function ShoppingPage() {
     if (uncheckedNames.length < 2) return
     setConsolidating(true)
     setMutationError('')
+    setPantryNotes({})
     try {
       const res = await fetch('/api/shopping/consolidate', {
         method: 'POST',
@@ -232,7 +234,7 @@ export default function ShoppingPage() {
         setMutationError(data.error ?? 'Failed to consolidate — try again')
         return
       }
-      const { items: consolidated } = await res.json()
+      const { items: consolidated }: { items: Array<{ name: string; pantry_note?: string }> } = await res.json()
 
       // Delete all unchecked items then re-add the consolidated ones
       const uncheckedIds = items.filter(i => !i.is_checked).map(i => i.id)
@@ -243,7 +245,7 @@ export default function ShoppingPage() {
       const addRes = await fetch('/api/shopping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(consolidated.map((name: string) => ({ name }))),
+        body: JSON.stringify(consolidated.map(item => ({ name: item.name }))),
       })
       if (!addRes.ok) {
         setMutationError('Failed to save consolidated list — refresh and try again')
@@ -251,6 +253,12 @@ export default function ShoppingPage() {
       }
       const newItems = await addRes.json()
       setItems(prev => [...newItems, ...prev.filter(i => i.is_checked)])
+
+      const notes: Record<string, string> = {}
+      for (const item of consolidated) {
+        if (item.pantry_note) notes[item.name] = item.pantry_note
+      }
+      setPantryNotes(notes)
     } catch {
       setMutationError('Something went wrong — check your connection')
     } finally {
@@ -343,6 +351,11 @@ export default function ShoppingPage() {
                 className="w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 shrink-0 flex items-center justify-center transition-colors"
               />
               <span className="text-sm text-gray-800 flex-1">{item.name}</span>
+              {pantryNotes[item.name] && (
+                <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap">
+                  in pantry?
+                </span>
+              )}
               {item.quantity && <span className="text-xs text-gray-400">{item.quantity}</span>}
               <a
                 href={tescoSearchUrl(item.name)}
