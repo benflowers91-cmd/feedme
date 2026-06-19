@@ -29,6 +29,7 @@ export default function FindPage() {
 
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [pantryLoading, setPantryLoading] = useState(true)
+  const [pantryQueries, setPantryQueries] = useState<string[]>([])
 
   useEffect(() => {
     if (!session) return
@@ -72,20 +73,41 @@ export default function FindPage() {
     }
   }
 
-  function toggleUseWhatIHave() {
+  async function toggleUseWhatIHave() {
     if (useWhatIHave) {
       setUseWhatIHave(false)
       setSearchQuery('')
       setSearchResults([])
       setSearched(false)
       setSearchError('')
+      setPantryQueries([])
     } else {
-      const topItems = pillItems.slice(0, 6)
-      if (topItems.length === 0) return
-      const q = topItems.map(i => i.name).join(' ')
+      if (pillItems.length === 0) return
       setUseWhatIHave(true)
-      setSearchQuery(q)
-      handleWebSearch(q)
+      setSearchLoading(true)
+      setSearchError('')
+      setSearchResults([])
+      setSearched(true)
+      setPantryQueries([])
+      setSearchQuery('')
+      try {
+        const res = await fetch('/api/pantry-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: pillItems.map(i => i.name) }),
+        })
+        const data = await res.json()
+        if (data.error) {
+          setSearchError(data.error)
+        } else {
+          setSearchResults(data.results ?? [])
+          setPantryQueries(data.queries ?? [])
+        }
+      } catch {
+        setSearchError('Search failed — check your connection')
+      } finally {
+        setSearchLoading(false)
+      }
     }
   }
 
@@ -150,12 +172,21 @@ export default function FindPage() {
             Use what I have
           </button>
           {useWhatIHave && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {pillItems.slice(0, 6).map(item => (
-                <span key={item.id} className="text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
-                  {item.name}
-                </span>
-              ))}
+            <div className="mt-2 space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {pillItems.map(item => (
+                  <span key={item.id} className="text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
+                    {item.name}
+                  </span>
+                ))}
+              </div>
+              {pantryQueries.length > 0 && (
+                <p className="text-xs text-gray-400">
+                  Searching for: {pantryQueries.map((q, i) => (
+                    <span key={i}>{i > 0 ? ' · ' : ''}<em>{q}</em></span>
+                  ))}
+                </p>
+              )}
             </div>
           )}
         </div>
