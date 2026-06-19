@@ -14,6 +14,7 @@
   - Could internal templates or tighter prompting reduce LLM processing time?
   - Cache or store the last search results (e.g. `sessionStorage` or a lightweight client-side store) so they survive a tab blur/remount without re-fetching.
   - Check whether the `/api/search` route is doing redundant work that could be trimmed.
+  - **Bug:** Every fetch attempt now triggers a search for "fatoush" — likely a stale value stuck in `sessionStorage`, a React state initialiser reading from cache, or a `useEffect` firing with a persisted query on mount. Find where the initial query value is being read from and clear/guard it.
 
 ## Shopping List
 
