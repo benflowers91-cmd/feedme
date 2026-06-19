@@ -37,6 +37,8 @@ export default function SavedPage() {
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({})
   const [savingTags, setSavingTags] = useState<string | null>(null)
+  const [autoTagging, setAutoTagging] = useState(false)
+  const [autoTagResult, setAutoTagResult] = useState<number | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -94,6 +96,25 @@ export default function SavedPage() {
     const newTags = (recipe.tags ?? []).filter(t => t !== tag)
     updateTags(recipe, newTags)
     if (tagFilter === tag) setTagFilter(null)
+  }
+
+  async function autoTagAll() {
+    setAutoTagging(true)
+    setAutoTagResult(null)
+    try {
+      const res = await fetch('/api/recipes/tag', { method: 'POST' })
+      if (!res.ok) return
+      const { results } = await res.json()
+      if (results?.length > 0) {
+        setRecipes(prev => prev.map(r => {
+          const updated = results.find((u: { id: string; tags: string[] }) => u.id === r.id)
+          return updated ? { ...r, tags: updated.tags } : r
+        }))
+      }
+      setAutoTagResult(results?.length ?? 0)
+    } finally {
+      setAutoTagging(false)
+    }
   }
 
   async function deleteRecipe(id: string) {
@@ -165,8 +186,8 @@ export default function SavedPage() {
 
       {recipes.length > 0 && (
         <div className="mb-4 space-y-2">
-          {/* Favourites / All filter */}
-          <div className="flex gap-2 flex-wrap">
+          {/* Favourites / All filter + Auto-tag */}
+          <div className="flex gap-2 flex-wrap items-center">
             <button
               onClick={() => setFilter('all')}
               className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
@@ -188,6 +209,18 @@ export default function SavedPage() {
               <HeartIcon filled={filter === 'favourites'} />
               Favourites ({favouriteCount})
             </button>
+            <button
+              onClick={autoTagAll}
+              disabled={autoTagging}
+              className="ml-auto text-xs font-medium px-3 py-1.5 rounded-full border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+            >
+              {autoTagging ? 'Tagging...' : 'Auto-tag all'}
+            </button>
+            {autoTagResult !== null && !autoTagging && (
+              <span className="text-xs text-gray-400">
+                {autoTagResult === 0 ? 'All tagged' : `${autoTagResult} tagged`}
+              </span>
+            )}
           </div>
 
           {/* Tag filters */}
