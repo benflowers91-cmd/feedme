@@ -15,6 +15,7 @@ export default function ShoppingPage() {
   const [clearingAll, setClearingAll] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
   const [mutationError, setMutationError] = useState('')
+  const [pantryNotes, setPantryNotes] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!session) return
@@ -106,6 +107,7 @@ export default function ShoppingPage() {
         return
       }
       setItems([])
+      setPantryNotes({})
     } catch {
       setMutationError('Failed to clear list — check your connection')
     } finally {
@@ -232,7 +234,13 @@ export default function ShoppingPage() {
         setMutationError(data.error ?? 'Failed to consolidate — try again')
         return
       }
-      const { items: consolidated } = await res.json()
+      const { items: consolidated }: { items: { name: string; pantry_note?: string }[] } = await res.json()
+
+      // Build pantry notes map keyed by normalised name
+      const notes: Record<string, string> = {}
+      for (const item of consolidated) {
+        if (item.pantry_note) notes[item.name.toLowerCase()] = item.pantry_note
+      }
 
       // Delete all unchecked items then re-add the consolidated ones
       const uncheckedIds = items.filter(i => !i.is_checked).map(i => i.id)
@@ -243,7 +251,7 @@ export default function ShoppingPage() {
       const addRes = await fetch('/api/shopping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(consolidated.map((name: string) => ({ name }))),
+        body: JSON.stringify(consolidated.map(i => ({ name: i.name }))),
       })
       if (!addRes.ok) {
         setMutationError('Failed to save consolidated list — refresh and try again')
@@ -251,6 +259,7 @@ export default function ShoppingPage() {
       }
       const newItems = await addRes.json()
       setItems(prev => [...newItems, ...prev.filter(i => i.is_checked)])
+      setPantryNotes(notes)
     } catch {
       setMutationError('Something went wrong — check your connection')
     } finally {
@@ -336,29 +345,39 @@ export default function ShoppingPage() {
         <p className="text-sm text-gray-400 text-center py-8">Your shopping list is empty.</p>
       ) : (
         <div className="space-y-1.5">
-          {unchecked.map(item => (
-            <div key={item.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
-              <button
-                onClick={() => toggleItem(item)}
-                className="w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 shrink-0 flex items-center justify-center transition-colors"
-              />
-              <span className="text-sm text-gray-800 flex-1">{item.name}</span>
-              {item.quantity && <span className="text-xs text-gray-400">{item.quantity}</span>}
-              <a
-                href={tescoSearchUrl(item.name)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] text-gray-300 hover:text-blue-500 shrink-0 font-medium transition-colors"
-              >
-                Tesco
-              </a>
-              <button onClick={() => deleteItem(item.id)} className="text-gray-200 hover:text-red-400 shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
+          {unchecked.map(item => {
+            const pantryNote = pantryNotes[item.name.toLowerCase()]
+            return (
+              <div key={item.id} className={`flex items-center gap-3 bg-white rounded-xl px-4 py-3 border shadow-sm ${pantryNote ? 'border-amber-200' : 'border-gray-100'}`}>
+                <button
+                  onClick={() => toggleItem(item)}
+                  className="w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 shrink-0 flex items-center justify-center transition-colors"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-gray-800">{item.name}</span>
+                  {pantryNote && (
+                    <span className="ml-2 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                      {pantryNote}
+                    </span>
+                  )}
+                </div>
+                {item.quantity && <span className="text-xs text-gray-400">{item.quantity}</span>}
+                <a
+                  href={tescoSearchUrl(item.name)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-gray-300 hover:text-blue-500 shrink-0 font-medium transition-colors"
+                >
+                  Tesco
+                </a>
+                <button onClick={() => deleteItem(item.id)} className="text-gray-200 hover:text-red-400 shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )
+          })}
 
           {checked.length > 0 && (
             <>

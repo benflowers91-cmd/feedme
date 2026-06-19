@@ -1,23 +1,39 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { createServerClient } from '@/lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic()
 
 const CONSOLIDATE_TOOL: Anthropic.Tool = {
   name: 'consolidate_shopping_list',
-  description: 'Return a consolidated shopping list, merging near-duplicate and related ingredients',
+  description: 'Return a consolidated shopping list, merging near-duplicate and related ingredients, with optional pantry cross-reference notes',
   input_schema: {
     type: 'object',
     properties: {
       items: {
         type: 'array',
-        items: { type: 'string' },
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The consolidated item name' },
+            pantry_note: {
+              type: 'string',
+              description: 'Short note if the user likely already has this (e.g. "you have chili oil"). Omit if not covered by pantry.',
+            },
+          },
+          required: ['name'],
+        },
         description: 'The consolidated list of shopping items',
       },
     },
     required: ['items'],
   },
+}
+
+export interface ConsolidatedItem {
+  name: string
+  pantry_note?: string
 }
 
 export async function POST(request: Request) {
@@ -31,7 +47,20 @@ export async function POST(request: Request) {
     return Response.json({ error: 'items array is required' }, { status: 400 })
   }
 
+  const supabase = createServerClient()
+  const { data: pantryData } = await supabase
+    .from('pantry_items')
+    .select('name')
+    .eq('user_id', session.user.email)
+    .order('name')
+
+  const pantryItems = pantryData ?? []
+  const hasPantry = pantryItems.length > 0
+
   const itemList = items.map((name: string) => `- ${name}`).join('\n')
+  const pantrySection = hasPantry
+    ? `\nPANTRY (items the user already has at home):\n${pantryItems.map(p => `- ${p.name}`).join('\n')}`
+    : ''
 
   const userMessage = `Consolidate this shopping list by merging near-duplicates and similar ingredients into single clear entries.
 
@@ -43,10 +72,11 @@ Rules:
 - Return only the consolidated items — no extra explanation.
 - Preserve FODMAP-safe substitutions: never consolidate a safe ingredient into a high-FODMAP one.
 - Use UK English spelling and ingredient names throughout: aubergine (not eggplant), courgette (not zucchini), coriander (not cilantro), spring onion (not scallion), prawns (not shrimp), rocket (not arugula), plain flour (not all-purpose flour), pepper (not bell pepper), chips (not fries), biscuits (not cookies).
-- Convert US measurements to metric: 1 cup liquid → 240ml, 1 cup flour → 120g, 1 cup sugar → 200g, 1 cup rice → 185g, 1 oz → 28g, 1 lb → 450g. Keep tbsp and tsp as-is (used in UK). Use g and ml throughout.
+- Convert US measurements to metric: 1 cup liquid → 240ml, 1 cup flour → 120g, 1 cup sugar → 200g, 1 cup rice → 185g, 1 oz → 28g, 1 lb → 450g. Keep tbsp and tsp as-is (used in UK). Use g and ml throughout.${hasPantry ? `
+- For each consolidated item, if it is already covered by a pantry item, set pantry_note to a short phrase like "you have this" or "you have chili oil". Do not remove the item — the user decides whether to buy more.` : ''}
 
 SHOPPING LIST:
-${itemList}`
+${itemList}${pantrySection}`
 
   try {
     const response = await anthropic.messages.create({
@@ -61,7 +91,7 @@ ${itemList}`
     if (!toolBlock || toolBlock.type !== 'tool_use') {
       return Response.json({ error: 'Unexpected response — try again' }, { status: 500 })
     }
-    const result = toolBlock.input as { items: string[] }
+    const result = toolBlock.input as { items: ConsolidatedItem[] }
     return Response.json({ items: result.items })
   } catch (err) {
     console.error('Claude consolidate error:', err)
