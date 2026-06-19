@@ -48,6 +48,7 @@ function AdaptPageInner() {
   const [analyseError, setAnalyseError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const DIETARY_OPTIONS = [
     'Shellfish allergy',
@@ -123,6 +124,7 @@ function AdaptPageInner() {
     setResult(null)
     setSelections({})
     setSaved(false)
+    setSaveError('')
     setFetchError('')
     setAnalyseError('')
     setDietaryRequirements(['Shellfish allergy'])
@@ -132,6 +134,7 @@ function AdaptPageInner() {
   async function saveRecipe() {
     if (!result) return
     setSaving(true)
+    setSaveError('')
     const finalIngredients = result.ingredients.map((ing, i) => {
       const sel = selections[i]
       if (sel === 'keep' || sel === undefined || !ing.substitution_options?.length) {
@@ -140,19 +143,29 @@ function AdaptPageInner() {
       const opt = ing.substitution_options[sel as number]
       return { name: opt.substitute, amount: null, unit: null, fodmap_status: 'safe' as const }
     })
-    await fetch('/api/recipes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: result.title,
-        ingredients: finalIngredients,
-        instructions: result.instructions,
-        fodmap_notes: result.fodmap_notes,
-        source_url: sourceUrl || null,
-      }),
-    })
-    setSaved(true)
-    setSaving(false)
+    try {
+      const res = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: result.title,
+          ingredients: finalIngredients,
+          instructions: result.instructions,
+          fodmap_notes: result.fodmap_notes,
+          source_url: sourceUrl || null,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSaveError(data.error ?? 'Failed to save recipe — try again')
+      } else {
+        setSaved(true)
+      }
+    } catch {
+      setSaveError('Failed to save recipe — check your connection')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (status === 'loading') return null
@@ -268,6 +281,8 @@ function AdaptPageInner() {
         >
           {saved ? '✓ Saved to your recipes' : saving ? 'Saving...' : 'Save adapted recipe'}
         </button>
+
+        {saveError && <p className="text-sm text-red-500 mt-2">{saveError}</p>}
 
         {saved && (
           <button

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractRecipeFromHtml, findRecipeInLd, extractFromRecipeNode } from '@/lib/scrape-utils'
+import { extractRecipeFromHtml, findRecipeInLd, extractFromRecipeNode, classifyUrl } from '@/lib/scrape-utils'
 
 const SIMPLE_RECIPE_LD = {
   '@type': 'Recipe',
@@ -10,6 +10,50 @@ const SIMPLE_RECIPE_LD = {
     { '@type': 'HowToStep', text: 'Stir in lemon juice and olive oil.' },
   ],
 }
+
+describe('classifyUrl', () => {
+  it('returns blocked for social and video platforms', () => {
+    expect(classifyUrl('https://www.youtube.com/watch?v=abc')).toBe('blocked')
+    expect(classifyUrl('https://youtu.be/abc')).toBe('blocked')
+    expect(classifyUrl('https://www.instagram.com/p/abc')).toBe('blocked')
+    expect(classifyUrl('https://www.tiktok.com/@user/video/123')).toBe('blocked')
+    expect(classifyUrl('https://www.pinterest.com/pin/123')).toBe('blocked')
+    expect(classifyUrl('https://twitter.com/user/status/123')).toBe('blocked')
+    expect(classifyUrl('https://x.com/user/status/123')).toBe('blocked')
+    expect(classifyUrl('https://www.facebook.com/video/123')).toBe('blocked')
+    expect(classifyUrl('https://www.reddit.com/r/recipes/comments/abc')).toBe('blocked')
+  })
+
+  it('returns trusted for known recipe sites', () => {
+    expect(classifyUrl('https://www.bbcgoodfood.com/recipes/lemon-cake')).toBe('trusted')
+    expect(classifyUrl('https://mob.co.uk/recipes/pasta')).toBe('trusted')
+    expect(classifyUrl('https://ottolenghi.co.uk/recipes/chicken')).toBe('trusted')
+    expect(classifyUrl('https://www.seriouseats.com/recipes/rice')).toBe('trusted')
+    expect(classifyUrl('https://www.bonappetit.com/recipe/pasta')).toBe('trusted')
+    expect(classifyUrl('https://www.jamieoliver.com/recipes/pasta')).toBe('trusted')
+    expect(classifyUrl('https://www.allrecipes.com/recipe/123')).toBe('trusted')
+    expect(classifyUrl('https://www.simplyrecipes.com/recipes/pasta')).toBe('trusted')
+    expect(classifyUrl('https://www.epicurious.com/recipes/pasta')).toBe('trusted')
+    expect(classifyUrl('https://www.minimalistbaker.com/easy-pasta')).toBe('trusted')
+    expect(classifyUrl('https://www.recipetineats.com/pasta')).toBe('trusted')
+  })
+
+  it('strips www. prefix before matching', () => {
+    expect(classifyUrl('https://bbcgoodfood.com/recipes/cake')).toBe('trusted')
+    expect(classifyUrl('https://youtube.com/watch?v=abc')).toBe('blocked')
+  })
+
+  it('returns unknown for unrecognised sites', () => {
+    expect(classifyUrl('https://example.com/recipe')).toBe('unknown')
+    expect(classifyUrl('https://nytcooking.com/recipe')).toBe('unknown')
+    expect(classifyUrl('https://myrandomblog.net/pasta')).toBe('unknown')
+  })
+
+  it('returns unknown for invalid or non-http URLs', () => {
+    expect(classifyUrl('not-a-url')).toBe('unknown')
+    expect(classifyUrl('')).toBe('unknown')
+  })
+})
 
 describe('extractFromRecipeNode', () => {
   it('extracts title, ingredients, and array instructions', () => {
