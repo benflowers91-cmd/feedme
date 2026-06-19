@@ -48,6 +48,7 @@ function AdaptPageInner() {
   const [analyseError, setAnalyseError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const DIETARY_OPTIONS = [
     'Shellfish allergy',
@@ -132,6 +133,7 @@ function AdaptPageInner() {
   async function saveRecipe() {
     if (!result) return
     setSaving(true)
+    setSaveError('')
     const finalIngredients = result.ingredients.map((ing, i) => {
       const sel = selections[i]
       if (sel === 'keep' || sel === undefined || !ing.substitution_options?.length) {
@@ -140,7 +142,7 @@ function AdaptPageInner() {
       const opt = ing.substitution_options[sel as number]
       return { name: opt.substitute, amount: null, unit: null, fodmap_status: 'safe' as const }
     })
-    await fetch('/api/recipes', {
+    const res = await fetch('/api/recipes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -151,8 +153,12 @@ function AdaptPageInner() {
         source_url: sourceUrl || null,
       }),
     })
-    setSaved(true)
     setSaving(false)
+    if (!res.ok) {
+      setSaveError('Failed to save — please try again')
+      return
+    }
+    setSaved(true)
   }
 
   if (status === 'loading') return null
@@ -253,7 +259,7 @@ function AdaptPageInner() {
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Method</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Original recipe</p>
           <p className="text-sm text-gray-700 whitespace-pre-line">{result.instructions}</p>
         </div>
 
@@ -268,6 +274,7 @@ function AdaptPageInner() {
         >
           {saved ? '✓ Saved to your recipes' : saving ? 'Saving...' : 'Save adapted recipe'}
         </button>
+        {saveError && <p className="text-xs text-red-500 mt-2 text-center">{saveError}</p>}
 
         {saved && (
           <button

@@ -25,6 +25,7 @@ export default function FindPage() {
   const [searchError, setSearchError] = useState('')
   const [searched, setSearched] = useState(false)
   const [sortByPantry, setSortByPantry] = useState(false)
+  const [useWhatIHave, setUseWhatIHave] = useState(false)
 
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [pantryLoading, setPantryLoading] = useState(true)
@@ -48,16 +49,8 @@ export default function FindPage() {
     return pantryItems.filter(item => matchesHaystack(item.name, hay)).map(item => item.name)
   }
 
-  function appendIngredient(name: string) {
-    setSearchQuery(prev => {
-      const lower = prev.toLowerCase().split(/\s+/)
-      if (lower.includes(name.toLowerCase())) return prev
-      return prev.trim() ? `${prev.trim()} ${name}` : name
-    })
-  }
-
-  async function handleWebSearch() {
-    const q = searchQuery.trim()
+  async function handleWebSearch(overrideQuery?: string) {
+    const q = (overrideQuery ?? searchQuery).trim()
     if (!q) return
     setSearchLoading(true)
     setSearchError('')
@@ -76,6 +69,23 @@ export default function FindPage() {
       setSearchError('Search failed — check your connection')
     } finally {
       setSearchLoading(false)
+    }
+  }
+
+  function toggleUseWhatIHave() {
+    if (useWhatIHave) {
+      setUseWhatIHave(false)
+      setSearchQuery('')
+      setSearchResults([])
+      setSearched(false)
+      setSearchError('')
+    } else {
+      const topItems = pillItems.slice(0, 6)
+      if (topItems.length === 0) return
+      const q = topItems.map(i => i.name).join(' ')
+      setUseWhatIHave(true)
+      setSearchQuery(q)
+      handleWebSearch(q)
     }
   }
 
@@ -99,11 +109,12 @@ export default function FindPage() {
             type="text"
             placeholder="Pasta carbonara, Thai green curry..."
             value={searchQuery}
+            disabled={useWhatIHave}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleWebSearch()}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 pr-8"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 pr-8 disabled:bg-gray-50 disabled:text-gray-400"
           />
-          {searchQuery && (
+          {searchQuery && !useWhatIHave && (
             <button
               onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchError(''); setSearched(false) }}
               aria-label="Clear search"
@@ -114,40 +125,41 @@ export default function FindPage() {
           )}
         </div>
         <button
-          onClick={handleWebSearch}
-          disabled={searchLoading || !searchQuery.trim()}
+          onClick={() => handleWebSearch()}
+          disabled={searchLoading || !searchQuery.trim() || useWhatIHave}
           className="bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50 shrink-0"
         >
           {searchLoading ? '...' : 'Search'}
         </button>
       </div>
 
-      {pantryLoading ? (
-        <div className="flex gap-2 overflow-x-auto pb-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-7 w-20 bg-gray-100 rounded-full animate-pulse shrink-0" />
-          ))}
+      {!pantryLoading && pillItems.length > 0 && (
+        <div className="mb-3">
+          <button
+            onClick={toggleUseWhatIHave}
+            disabled={searchLoading}
+            className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
+              useWhatIHave
+                ? 'bg-green-600 border-green-600 text-white'
+                : 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100'
+            }`}
+          >
+            <span className={`w-8 h-4 rounded-full flex items-center transition-colors ${useWhatIHave ? 'bg-white/30' : 'bg-green-200'}`}>
+              <span className={`w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${useWhatIHave ? 'translate-x-4' : 'translate-x-0'}`} />
+            </span>
+            Use what I have
+          </button>
+          {useWhatIHave && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {pillItems.slice(0, 6).map(item => (
+                <span key={item.id} className="text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
+                  {item.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      ) : pillItems.length > 0 ? (
-        <div className="flex gap-2 overflow-x-auto pb-3">
-          {pillItems.map(item => {
-            const active = searchQuery.toLowerCase().split(/\s+/).includes(item.name.toLowerCase())
-            return (
-              <button
-                key={item.id}
-                onClick={() => appendIngredient(item.name)}
-                className={`text-xs px-3 py-1 rounded-full border shrink-0 transition-colors ${
-                  active
-                    ? 'bg-green-100 border-green-300 text-green-700 font-medium'
-                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {active ? '✓ ' : ''}{item.name}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
+      )}
 
       {searchError && <p className="text-sm text-red-500 mb-4">{searchError}</p>}
 
