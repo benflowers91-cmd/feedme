@@ -105,9 +105,9 @@ export default function FindPage() {
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchError(''); setSearched(false) }}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 text-lg leading-none"
             >
               ×
             </button>
