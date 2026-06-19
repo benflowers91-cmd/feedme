@@ -94,14 +94,25 @@ export default function FindPage() {
       <p className="text-sm text-gray-500 mb-4">Search real recipes from trusted sites — then fetch and adapt for FODMAP</p>
 
       <div className="flex gap-2 mb-3">
-        <input
-          type="text"
-          placeholder="Pasta carbonara, Thai green curry..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleWebSearch()}
-          className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
-        />
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Pasta carbonara, Thai green curry..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleWebSearch()}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 pr-8"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchError(''); setSearched(false) }}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <button
           onClick={handleWebSearch}
           disabled={searchLoading || !searchQuery.trim()}

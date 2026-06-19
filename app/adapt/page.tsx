@@ -27,7 +27,7 @@ interface AnalysedIngredient extends RecipeIngredient {
 interface AnalysedRecipe {
   title: string
   ingredients: AnalysedIngredient[]
-  instructions: string
+  instructions?: string
   fodmap_notes: string
 }
 
@@ -102,7 +102,7 @@ function AdaptPageInner() {
     if (data.error) {
       setAnalyseError(data.error)
     } else {
-      setResult(data)
+      setResult({ ...data, instructions: recipeText })
       const defaults: Record<number, number | 'keep'> = {}
       data.ingredients.forEach((ing: AnalysedIngredient, i: number) => {
         if (ing.substitution_options?.length > 0 && (ing.fodmap_status === 'avoid' || ing.fodmap_status === 'moderate')) {

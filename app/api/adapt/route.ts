@@ -36,10 +36,9 @@ const ANALYSE_TOOL: Anthropic.Tool = {
           required: ['name', 'fodmap_status', 'substitution_options'],
         },
       },
-      instructions: { type: 'string' },
       fodmap_notes: { type: 'string' },
     },
-    required: ['title', 'ingredients', 'instructions', 'fodmap_notes'],
+    required: ['title', 'ingredients', 'fodmap_notes'],
   },
 }
 
@@ -68,15 +67,14 @@ Rules:
 - For avoid ingredients: provide 1–3 concrete, specific substitutes with quantities where possible.
 - For moderate ingredients: provide 1–2 substitutes or note safe portion sizes.
 - Keep the original recipe title unless the adaptation changes the dish significantly.
-- Instructions should reflect the original method (substitutions are chosen by the user).
 
 ORIGINAL RECIPE:
 ${recipe_text}`
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
       tools: [ANALYSE_TOOL],
       tool_choice: { type: 'tool', name: 'analyse_recipe' },
       system: [
