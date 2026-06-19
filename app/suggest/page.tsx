@@ -29,7 +29,7 @@ export default function FindPage() {
 
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [pantryLoading, setPantryLoading] = useState(true)
-  const [selectedPillIds, setSelectedPillIds] = useState<Set<string>>(new Set())
+  const [pantryQueries, setPantryQueries] = useState<string[]>([])
 
   useEffect(() => {
     if (!session) return
@@ -73,40 +73,42 @@ export default function FindPage() {
     }
   }
 
-  function toggleUseWhatIHave() {
+  async function toggleUseWhatIHave() {
     if (useWhatIHave) {
       setUseWhatIHave(false)
       setSearchQuery('')
       setSearchResults([])
       setSearched(false)
       setSearchError('')
-      setSelectedPillIds(new Set())
+      setPantryQueries([])
     } else {
-      const topItems = pillItems.slice(0, 6)
-      if (topItems.length === 0) return
-      const initialIds = new Set(topItems.slice(0, 2).map(i => i.id))
-      setSelectedPillIds(initialIds)
+      if (pillItems.length === 0) return
       setUseWhatIHave(true)
-      const q = topItems.slice(0, 2).map(i => i.name).join(' ')
-      setSearchQuery(q)
-      handleWebSearch(q)
-    }
-  }
-
-  function togglePill(item: PantryItem) {
-    setSelectedPillIds(prev => {
-      const next = new Set(prev)
-      if (next.has(item.id)) {
-        next.delete(item.id)
-      } else {
-        next.add(item.id)
+      setSearchLoading(true)
+      setSearchError('')
+      setSearchResults([])
+      setSearched(true)
+      setPantryQueries([])
+      setSearchQuery('')
+      try {
+        const res = await fetch('/api/pantry-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: pillItems.map(i => i.name) }),
+        })
+        const data = await res.json()
+        if (data.error) {
+          setSearchError(data.error)
+        } else {
+          setSearchResults(data.results ?? [])
+          setPantryQueries(data.queries ?? [])
+        }
+      } catch {
+        setSearchError('Search failed — check your connection')
+      } finally {
+        setSearchLoading(false)
       }
-      const selected = pillItems.slice(0, 6).filter(i => next.has(i.id))
-      const q = selected.map(i => i.name).join(' ')
-      setSearchQuery(q)
-      if (q) handleWebSearch(q)
-      return next
-    })
+    }
   }
 
   const pillItems = pantryItems.filter(i => i.fodmap_status === 'safe' || i.fodmap_status === 'moderate')
@@ -146,7 +148,7 @@ export default function FindPage() {
         </div>
         <button
           onClick={() => handleWebSearch()}
-          disabled={searchLoading || !searchQuery.trim()}
+          disabled={searchLoading || !searchQuery.trim() || useWhatIHave}
           className="bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50 shrink-0"
         >
           {searchLoading ? '...' : 'Search'}
@@ -170,24 +172,21 @@ export default function FindPage() {
             Use what I have
           </button>
           {useWhatIHave && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {pillItems.slice(0, 6).map(item => {
-                const selected = selectedPillIds.has(item.id)
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => togglePill(item)}
-                    disabled={searchLoading}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                      selected
-                        ? 'bg-green-600 border-green-600 text-white'
-                        : 'bg-white border-green-200 text-green-700 opacity-50'
-                    }`}
-                  >
+            <div className="mt-2 space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {pillItems.map(item => (
+                  <span key={item.id} className="text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
                     {item.name}
-                  </button>
-                )
-              })}
+                  </span>
+                ))}
+              </div>
+              {pantryQueries.length > 0 && (
+                <p className="text-xs text-gray-400">
+                  Searching for: {pantryQueries.map((q, i) => (
+                    <span key={i}>{i > 0 ? ' · ' : ''}<em>{q}</em></span>
+                  ))}
+                </p>
+              )}
             </div>
           )}
         </div>
