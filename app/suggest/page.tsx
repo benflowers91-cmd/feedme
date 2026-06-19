@@ -29,6 +29,7 @@ export default function FindPage() {
 
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [pantryLoading, setPantryLoading] = useState(true)
+  const [selectedPillIds, setSelectedPillIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!session) return
@@ -79,14 +80,33 @@ export default function FindPage() {
       setSearchResults([])
       setSearched(false)
       setSearchError('')
+      setSelectedPillIds(new Set())
     } else {
       const topItems = pillItems.slice(0, 6)
       if (topItems.length === 0) return
-      const q = topItems.map(i => i.name).join(' ')
+      const initialIds = new Set(topItems.slice(0, 2).map(i => i.id))
+      setSelectedPillIds(initialIds)
       setUseWhatIHave(true)
+      const q = topItems.slice(0, 2).map(i => i.name).join(' ')
       setSearchQuery(q)
       handleWebSearch(q)
     }
+  }
+
+  function togglePill(item: PantryItem) {
+    setSelectedPillIds(prev => {
+      const next = new Set(prev)
+      if (next.has(item.id)) {
+        next.delete(item.id)
+      } else {
+        next.add(item.id)
+      }
+      const selected = pillItems.slice(0, 6).filter(i => next.has(i.id))
+      const q = selected.map(i => i.name).join(' ')
+      setSearchQuery(q)
+      if (q) handleWebSearch(q)
+      return next
+    })
   }
 
   const pillItems = pantryItems.filter(i => i.fodmap_status === 'safe' || i.fodmap_status === 'moderate')
@@ -126,7 +146,7 @@ export default function FindPage() {
         </div>
         <button
           onClick={() => handleWebSearch()}
-          disabled={searchLoading || !searchQuery.trim() || useWhatIHave}
+          disabled={searchLoading || !searchQuery.trim()}
           className="bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50 shrink-0"
         >
           {searchLoading ? '...' : 'Search'}
@@ -151,11 +171,23 @@ export default function FindPage() {
           </button>
           {useWhatIHave && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {pillItems.slice(0, 6).map(item => (
-                <span key={item.id} className="text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
-                  {item.name}
-                </span>
-              ))}
+              {pillItems.slice(0, 6).map(item => {
+                const selected = selectedPillIds.has(item.id)
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => togglePill(item)}
+                    disabled={searchLoading}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      selected
+                        ? 'bg-green-600 border-green-600 text-white'
+                        : 'bg-white border-green-200 text-green-700 opacity-50'
+                    }`}
+                  >
+                    {item.name}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
