@@ -23,16 +23,18 @@ Eating FODMAP-safe is hard work. Most recipes online aren't FODMAP-compliant, an
 
 **Right now:** Ben only. Single-user. No onboarding, no marketing, no multi-tenancy.
 
-**Longer term:** [Open question — see Clarifications below]
+**Near future:** Ben's partner and a small circle of friends. Small-scale sharing, not a public launch. Requires RLS on Supabase and per-user dietary profiles before this is safe to open up.
+
+**Success looks like:** Daily personal use. Light portfolio piece — something to reference and demo, not necessarily a product launch.
 
 ---
 
 ## Dietary rules (non-negotiable)
 
-- **FODMAP:** Moderate sensitivity. Flag trigger ingredients, suggest safe substitutions. Don't be overly restrictive — liveable, not clinical.
+- **FODMAP:** Moderate sensitivity by default. Flag trigger ingredients, suggest safe substitutions. Don't be overly restrictive — liveable, not clinical.
 - **Shellfish:** Never suggest shellfish under any circumstances. This is an allergy, not a preference.
 
-These rules are currently hardcoded in `lib/fodmap-prompt.ts`. Future: user-configurable dietary profile (see Roadmap).
+These rules are currently hardcoded in `lib/fodmap-prompt.ts`. Planned: user-configurable dietary profile (see Roadmap).
 
 ---
 
@@ -87,7 +89,7 @@ Today's meals at a glance. Quick action tiles.
 | Recipe edit | Must delete and re-adapt to change a saved recipe |
 | Shopping list share/export | No copy, share, or supermarket integration yet |
 | Push notifications / meal reminders | Not started |
-| RLS on Supabase | Safe for personal use; needed before multi-user |
+| RLS on Supabase | Safe for personal use; needed before sharing with others |
 
 ---
 
@@ -95,18 +97,41 @@ Today's meals at a glance. Quick action tiles.
 
 ### Small wins
 - **"Adapt another recipe" button** — reset state after saving, avoid navigating away and back
-- **Copy shopping list** — one button, `navigator.clipboard.writeText()`, no dependencies
-- **Native share sheet** — `navigator.share()` for mobile, sends list to any app
-- **Improve URL scrape hit rate** — allowlist of known-good sites; block YouTube/Instagram/Pinterest fast
+- **Copy shopping list to clipboard** — one button, no dependencies, works everywhere
+- **Native share sheet** — `navigator.share()` on mobile, sends list to Notes, WhatsApp, etc.
+- **Improve URL scrape hit rate** — allowlist of known-good sites; block YouTube/Instagram/Pinterest immediately
 
 ### Medium effort
-- **Dietary profile / allergy settings** — user-configurable FODMAP sensitivity, named allergies, other restrictions. Replaces hardcoded prompt. New `/settings` page.
-- **Smart shopping aggregator** — consolidate near-duplicate ingredients across recipes (e.g. 3 different tomato types → one quantity)
-- **Streaming on Adapt** — show ingredient analysis progressively instead of waiting for full response
-- **Per-item Tesco/Ocado search links** — open supermarket search in new tab per item
+- **Dietary profile / settings page** — user-configurable FODMAP sensitivity level, named allergies (shellfish, dairy, etc.), other restrictions (vegan, gluten-free). Replaces hardcoded `lib/fodmap-prompt.ts`. New `/settings` page. Required before sharing with others.
+- **Smart shopping aggregator** — consolidate near-duplicate ingredients across recipes into one line item
+- **Streaming on Adapt** — show ingredient analysis progressively rather than waiting for full response
+- **Per-item supermarket search links** — open Tesco/Ocado search in a new tab per item
 
-### Bigger
-- **Multi-user / sharing** — requires RLS, onboarding, settings per user. Not in scope until personal use is solid.
+### Big features
+
+#### Browser extension
+Browse any recipe site and click one button to fetch, adapt, and save directly to FeedMe — without opening the app. The adaptation step runs in the background; you get a notification when it's done.
+
+**Why this matters:** The current flow requires copying a URL, opening FeedMe, pasting into Adapt, and waiting. A browser extension collapses that to one click from any recipe page.
+
+**Technical approach (to validate):**
+- Chrome/Firefox extension (separate codebase)
+- Extension button scrapes the current page URL and POSTs it to the existing `/api/adapt` endpoint
+- Auth: extension authenticates via the same Google OAuth session (cookie sharing, or a long-lived token stored in extension storage)
+- On success: shows a small popup confirming the recipe was saved
+- Reuses all existing server-side logic — no duplicate scraping or AI code
+
+**Open questions before building:**
+- Does the extension share the browser's Google session cookie, or does it need its own auth token?
+- Should it show the substitution picker inline (like the web app) or auto-apply the first suggested sub silently?
+- Chrome-only first, or Firefox too?
+
+#### Multi-user / sharing
+Share FeedMe with partner and friends. Requires:
+- RLS policies on all Supabase tables (currently none — safe only because it's single-user)
+- Per-user dietary profiles (so partner's settings don't affect Ben's suggestions)
+- Some form of invite / onboarding flow
+Not in scope until the single-user experience is solid and dietary profiles are built.
 
 ---
 
@@ -116,19 +141,4 @@ Today's meals at a glance. Quick action tiles.
 - Calorie counting
 - Supermarket basket API integration (Tesco requires commercial partnership; not feasible)
 - Recipe creation from scratch (Adapt and Find cover the use case)
-
----
-
-## Clarifications needed
-
-*Things to decide — answers will update this doc.*
-
-1. **Who is the long-term audience?** Just Ben forever, or eventually open to others (friends, public, product launch)? This affects decisions around RLS, onboarding, settings, and how much polish matters.
-
-2. **What does success look like?** Using it daily yourself? Portfolio piece? Something you'd share?
-
-3. **Is there a feature you've imagined that isn't in any doc yet?** Anything you've thought "it'd be great if..." that hasn't been scoped.
-
-4. **Shopping list priority** — copy/share vs supermarket links vs something else. What would you actually use?
-
-5. **Dietary profile** — do you ever want to change your FODMAP sensitivity level or add restrictions, or is the current hardcoded setup fine for now?
+- Full native mobile app (PWA covers the mobile use case)
