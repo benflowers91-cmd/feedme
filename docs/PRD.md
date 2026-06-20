@@ -27,6 +27,8 @@ Eating FODMAP-safe is hard work. Most recipes online aren't FODMAP-compliant, an
 
 **Success looks like:** Daily personal use. Light portfolio piece — something to reference and demo, not necessarily a product launch.
 
+**Primary device:** Mobile. Most usage is on phone, not desktop. Design and feature decisions should default to mobile-first.
+
 ---
 
 ## Dietary rules (non-negotiable)
@@ -112,19 +114,24 @@ Today's meals at a glance. Quick action tiles.
 #### Browser extension
 Browse any recipe site and click one button to fetch, adapt, and save directly to FeedMe — without opening the app. The adaptation step runs in the background; you get a notification when it's done.
 
-**Why this matters:** The current flow requires copying a URL, opening FeedMe, pasting into Adapt, and waiting. A browser extension collapses that to one click from any recipe page.
+**Why this matters:** The current flow requires copying a URL, opening FeedMe, pasting into Adapt, and waiting. Collapsing that to one tap from any recipe page removes the biggest friction in adding new recipes.
 
-**Technical approach (to validate):**
-- Chrome/Firefox extension (separate codebase)
-- Extension button scrapes the current page URL and POSTs it to the existing `/api/adapt` endpoint
-- Auth: extension authenticates via the same Google OAuth session (cookie sharing, or a long-lived token stored in extension storage)
-- On success: shows a small popup confirming the recipe was saved
-- Reuses all existing server-side logic — no duplicate scraping or AI code
+**Note on approach — mobile-first:** Ben primarily uses FeedMe on mobile, so a desktop browser extension is secondary. The higher-value solution is a **PWA share target** — registering FeedMe as a share destination on iOS/Android so any recipe URL shared from Safari or Chrome lands directly in the Adapt flow. No separate codebase required; it's a PWA feature.
+
+**PWA share target approach:**
+- Add `share_target` to `public/manifest.json` pointing to `/adapt`
+- On Android (Chrome): works natively — FeedMe appears in the system share sheet
+- On iOS (Safari): PWA share targets have limited support; may need a workaround or a dedicated share extension
+- Reuses all existing server-side logic
+
+**Desktop browser extension (secondary):**
+- Chrome/Firefox extension, separate codebase
+- Worth building after the mobile share target is working
+- Auth open question: extension session sharing vs long-lived token
 
 **Open questions before building:**
-- Does the extension share the browser's Google session cookie, or does it need its own auth token?
-- Should it show the substitution picker inline (like the web app) or auto-apply the first suggested sub silently?
-- Chrome-only first, or Firefox too?
+- iOS share target support — test on Safari before committing to the PWA approach
+- Should the share flow auto-apply substitutions silently, or land on the Adapt page for review?
 
 #### Multi-user / sharing
 Share FeedMe with partner and friends. Requires:
