@@ -83,11 +83,15 @@ ${itemList}`
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 4096,
       tools: [CONSOLIDATE_TOOL],
       tool_choice: { type: 'tool', name: 'consolidate_shopping_list' },
       messages: [{ role: 'user', content: userMessage }],
     })
+
+    if (response.stop_reason === 'max_tokens') {
+      return Response.json({ error: 'Shopping list is too long to consolidate — try removing some items first' }, { status: 422 })
+    }
 
     const toolBlock = response.content.find(b => b.type === 'tool_use')
     if (!toolBlock || toolBlock.type !== 'tool_use') {
