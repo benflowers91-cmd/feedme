@@ -223,12 +223,16 @@ export default function ShoppingPage() {
     setConsolidating(true)
     setMutationError('')
     setPantryNotes({})
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 55_000)
     try {
       const res = await fetch('/api/shopping/consolidate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: uncheckedNames }),
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
       if (!res.ok) {
         let errorMsg = 'Failed to consolidate — try again'
         try {
@@ -273,8 +277,13 @@ export default function ShoppingPage() {
         if (item.pantry_note) notes[item.name] = item.pantry_note
       }
       setPantryNotes(notes)
-    } catch {
-      setMutationError('Something went wrong — check your connection')
+    } catch (err) {
+      clearTimeout(timeout)
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setMutationError('Consolidation timed out — try again with a shorter list')
+      } else {
+        setMutationError('Something went wrong — check your connection')
+      }
     } finally {
       setConsolidating(false)
     }

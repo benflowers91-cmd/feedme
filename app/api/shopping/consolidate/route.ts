@@ -3,6 +3,8 @@ import { authOptions } from '@/lib/auth'
 import { createServerClient } from '@/lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 
+export const maxDuration = 60
+
 const anthropic = new Anthropic()
 
 const CONSOLIDATE_TOOL: Anthropic.Tool = {
