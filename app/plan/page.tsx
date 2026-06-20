@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
@@ -26,6 +27,7 @@ function getWeekDates(offset = 0) {
 }
 
 export default function PlanPage() {
+  const router = useRouter()
   const { data: session, status } = useSession()
   const [weekOffset, setWeekOffset] = useState(0)
   const [plan, setPlan] = useState<MealPlanEntry[]>([])
@@ -33,6 +35,7 @@ export default function PlanPage() {
   const [picking, setPicking] = useState<{ date: string; meal_type: MealType } | null>(null)
   const [loading, setLoading] = useState(true)
   const [mutationError, setMutationError] = useState('')
+  const [creatingShoppingList, setCreatingShoppingList] = useState(false)
 
   const weekDates = getWeekDates(weekOffset)
   const from = weekDates[0]
@@ -97,6 +100,43 @@ export default function PlanPage() {
     }
   }
 
+  async function createShoppingList() {
+    setCreatingShoppingList(true)
+    setMutationError('')
+    try {
+      const recipeIds = [...new Set(plan.map(e => e.recipe_id).filter(Boolean))] as string[]
+      if (recipeIds.length > 0) {
+        const plannedRecipes = recipes.filter(r => recipeIds.includes(r.id))
+        const ingredientMap = new Map<string, string>()
+        for (const recipe of plannedRecipes) {
+          for (const ing of recipe.ingredients || []) {
+            const key = ing.name.toLowerCase()
+            if (!ingredientMap.has(key)) {
+              const parts = [ing.amount, ing.unit, ing.name].filter(v => v != null && v !== '')
+              ingredientMap.set(key, parts.join(' '))
+            }
+          }
+        }
+        if (ingredientMap.size > 0) {
+          const res = await fetch('/api/shopping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Array.from(ingredientMap.values()).map(name => ({ name }))),
+          })
+          if (!res.ok) {
+            setMutationError('Failed to create shopping list — try again')
+            return
+          }
+        }
+      }
+      router.push('/shopping')
+    } catch {
+      setMutationError('Something went wrong — check your connection')
+    } finally {
+      setCreatingShoppingList(false)
+    }
+  }
+
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
@@ -134,6 +174,16 @@ export default function PlanPage() {
 
       {mutationError && (
         <p className="text-xs text-red-500 mb-3">{mutationError}</p>
+      )}
+
+      {!loading && (
+        <button
+          onClick={createShoppingList}
+          disabled={creatingShoppingList}
+          className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors mb-4"
+        >
+          {creatingShoppingList ? 'Creating...' : '🛒 Create shopping list from this plan'}
+        </button>
       )}
 
       {loading ? (
