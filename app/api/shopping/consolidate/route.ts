@@ -37,7 +37,14 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { items } = await request.json()
+  let items: string[]
+  try {
+    const body = await request.json()
+    items = body?.items
+  } catch {
+    return Response.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+
   if (!Array.isArray(items) || items.length === 0) {
     return Response.json({ error: 'items array is required' }, { status: 400 })
   }
@@ -85,6 +92,9 @@ ${itemList}`
       return Response.json({ error: 'Unexpected response — try again' }, { status: 500 })
     }
     const result = toolBlock.input as { items: Array<{ name: string; pantry_note?: string }> }
+    if (!Array.isArray(result.items)) {
+      return Response.json({ error: 'Unexpected response format — try again' }, { status: 500 })
+    }
     return Response.json({ items: result.items })
   } catch (err) {
     console.error('Claude consolidate error:', err)

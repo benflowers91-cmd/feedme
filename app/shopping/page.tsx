@@ -230,28 +230,42 @@ export default function ShoppingPage() {
         body: JSON.stringify({ items: uncheckedNames }),
       })
       if (!res.ok) {
-        const data = await res.json()
-        setMutationError(data.error ?? 'Failed to consolidate — try again')
+        let errorMsg = 'Failed to consolidate — try again'
+        try {
+          const data = await res.json()
+          errorMsg = data.error ?? errorMsg
+        } catch {}
+        setMutationError(errorMsg)
         return
       }
-      const { items: consolidated }: { items: Array<{ name: string; pantry_note?: string }> } = await res.json()
+      const data = await res.json()
+      const consolidated: Array<{ name: string; pantry_note?: string }> = Array.isArray(data?.items) ? data.items : null
+      if (!consolidated) {
+        setMutationError('Unexpected response — try again')
+        return
+      }
 
-      // Delete all unchecked items then re-add the consolidated ones
-      const uncheckedIds = items.filter(i => !i.is_checked).map(i => i.id)
-      await Promise.all(uncheckedIds.map(id =>
-        fetch(`/api/shopping?id=${id}`, { method: 'DELETE' })
-      ))
-
+      // Add consolidated items first, then delete old unchecked items only on success
       const addRes = await fetch('/api/shopping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(consolidated.map(item => ({ name: item.name }))),
       })
       if (!addRes.ok) {
-        setMutationError('Failed to save consolidated list — refresh and try again')
+        setMutationError('Failed to save consolidated list — try again')
         return
       }
       const newItems = await addRes.json()
+      if (!Array.isArray(newItems)) {
+        setMutationError('Failed to save consolidated list — try again')
+        return
+      }
+
+      const uncheckedIds = items.filter(i => !i.is_checked).map(i => i.id)
+      await Promise.all(uncheckedIds.map(id =>
+        fetch(`/api/shopping?id=${id}`, { method: 'DELETE' })
+      ))
+
       setItems(prev => [...newItems, ...prev.filter(i => i.is_checked)])
 
       const notes: Record<string, string> = {}
