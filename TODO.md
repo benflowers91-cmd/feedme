@@ -5,7 +5,7 @@
 - [x] **Add clear button to pantry search bar**
   `×` button inside the search input, visible when query is non-empty. `app/suggest/page.tsx`.
 
-- [ ] **"Use what I have" mode for recipe search**
+- [x] **"Use what I have" mode for recipe search**
   Replace the clunky pill-tapping flow with a toggle that auto-builds a Tavily search query from the top pantry ingredients (safe/moderate, top ~6) and fires the search immediately. Manual text input is disabled while the toggle is on. Results are real web recipes — no AI-written content.
   - **File:** `app/suggest/page.tsx`
 
@@ -17,9 +17,9 @@
 
 ## Saved Recipes
 
-- [ ] **Auto-tag saved recipes by meal type, cuisine, and effort**
+- [x] **Auto-tag saved recipes by meal type, cuisine, and effort**
   On-demand "Auto-tag all" button on the Saved page. New `POST /api/recipes/tag` route calls Claude Haiku with recipe title + first few ingredients → returns `{ meal_type, cuisine, effort }` via tool_use → PATCHes recipe. Only processes untagged recipes. Tags: meal_type (breakfast/lunch/dinner/snack), cuisine (open string), effort (quick/moderate/involved).
-  - **Files:** `app/saved/page.tsx`, new `app/api/recipes/tag/route.ts`
+  - **Files:** `app/saved/page.tsx`, `app/api/recipes/tag/route.ts`
 
 ## Shopping List
 
@@ -31,10 +31,10 @@
 
 ## Known bugs
 
-- [ ] **Adapt page: raw recipe text stored as "Method"**
-  When a recipe is saved from the Adapt page, the full raw input (ingredients + method mixed) is stored as `instructions` and shown under the "Method" heading on both the Adapt result screen and the Saved page. This is a regression — Claude previously extracted just the cooking steps. Options: (a) relabel the section "Original recipe" to set expectations, or (b) have Claude extract just the method in a separate lightweight call.
-  - **Files:** `app/adapt/page.tsx` (line 105, 257), `app/saved/page.tsx`
+- [x] **Adapt page: raw recipe text stored as "Method" on Saved page**
+  Relabeled to "Original recipe" on the Saved page to match the Adapt result screen.
+  - **File:** `app/saved/page.tsx`
 
-- [ ] **Adapt page: false "Saved" confirmation on POST failure**
-  `saveRecipe()` calls `setSaved(true)` unconditionally after the fetch, regardless of `res.ok`. If the `/api/recipes` POST fails (e.g., DB error, oversized payload), the user sees "✓ Saved to your recipes" but the recipe was not persisted. Fix: check `res.ok` before calling `setSaved(true)` and surface an error if false.
-  - **File:** `app/adapt/page.tsx` (lines 143–154)
+- [x] **Adapt page: false "Saved" confirmation on POST failure**
+  `saveRecipe()` now checks `res.ok` before calling `setSaved(true)` and surfaces a `saveError` message if the POST fails.
+  - **File:** `app/adapt/page.tsx`
