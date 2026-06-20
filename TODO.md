@@ -31,9 +31,9 @@
 
 ## Known bugs
 
-- [ ] **Adapt page: raw recipe text stored as "Method" on Saved page**
-  The Adapt result screen now correctly labels this section "Original recipe". However the Saved page still displays `recipe.instructions` under the heading "Method" — misleading since it's the full raw input, not extracted cooking steps. Fix: relabel to "Original recipe" on the Saved page to match.
-  - **File:** `app/saved/page.tsx` (line 393)
+- [x] **Adapt page: raw recipe text stored as "Method" on Saved page**
+  Relabeled to "Original recipe" on the Saved page to match the Adapt result screen.
+  - **File:** `app/saved/page.tsx`
 
 - [x] **Adapt page: false "Saved" confirmation on POST failure**
   `saveRecipe()` now checks `res.ok` before calling `setSaved(true)` and surfaces a `saveError` message if the POST fails.

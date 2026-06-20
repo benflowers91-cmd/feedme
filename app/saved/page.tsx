@@ -390,7 +390,7 @@ export default function SavedPage() {
 
                     {recipe.instructions && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Method</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Original recipe</p>
                         <p className="text-sm text-gray-700 whitespace-pre-line">{recipe.instructions}</p>
                       </div>
                     )}
