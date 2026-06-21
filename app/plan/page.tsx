@@ -6,6 +6,13 @@ import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
 import type { MealPlanEntry, Recipe, MealType } from '@/lib/types'
 
+const STATUS_STYLES: Record<string, string> = {
+  safe: 'text-green-600',
+  moderate: 'text-amber-600',
+  avoid: 'text-red-500',
+  unknown: 'text-gray-400',
+}
+
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 const MEAL_EMOJI: Record<MealType, string> = {
   breakfast: '🌅',
@@ -33,6 +40,7 @@ export default function PlanPage() {
   const [plan, setPlan] = useState<MealPlanEntry[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [picking, setPicking] = useState<{ date: string; meal_type: MealType } | null>(null)
+  const [viewing, setViewing] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [mutationError, setMutationError] = useState('')
   const [creatingShoppingList, setCreatingShoppingList] = useState(false)
@@ -210,7 +218,15 @@ export default function PlanPage() {
                         <span className="text-xs text-gray-400 w-16">{MEAL_EMOJI[meal]} {meal}</span>
                         {entry ? (
                           <div className="flex items-center gap-2 flex-1 justify-end">
-                            <span className="text-xs text-gray-700 text-right">{entry.recipe_title}</span>
+                            <button
+                              onClick={() => {
+                                const r = recipes.find(r => r.id === entry.recipe_id)
+                                if (r) setViewing(r)
+                              }}
+                              className="text-xs text-gray-700 text-right hover:text-green-700 hover:underline"
+                            >
+                              {entry.recipe_title}
+                            </button>
                             <button onClick={() => clearSlot(entry)} className="text-gray-200 hover:text-red-400 shrink-0">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
@@ -232,6 +248,61 @@ export default function PlanPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {viewing && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setViewing(null)}>
+          <div className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl max-h-[85vh] overflow-y-auto pb-24" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100 flex items-start justify-between">
+              <div className="flex-1 min-w-0 pr-3">
+                <p className="text-sm font-semibold text-gray-800">{viewing.title}</p>
+                {viewing.fodmap_notes && (
+                  <p className="text-xs text-gray-400 mt-0.5">{viewing.fodmap_notes}</p>
+                )}
+              </div>
+              <button onClick={() => setViewing(null)} className="text-gray-400 hover:text-gray-600 p-1 shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-4 py-4 space-y-4">
+              {(viewing.ingredients?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Ingredients</p>
+                  <ul className="space-y-1">
+                    {viewing.ingredients.map((ing, i) => (
+                      <li key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700">
+                          {[ing.amount, ing.unit, ing.name].filter(Boolean).join(' ')}
+                        </span>
+                        <span className={`text-xs font-medium ml-3 shrink-0 ${STATUS_STYLES[ing.fodmap_status] ?? STATUS_STYLES.unknown}`}>
+                          {ing.fodmap_status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {viewing.instructions && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recipe</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{viewing.instructions}</p>
+                </div>
+              )}
+              {viewing.source_url && (
+                <a
+                  href={viewing.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-green-600 hover:underline"
+                >
+                  Original source ↗
+                </a>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
