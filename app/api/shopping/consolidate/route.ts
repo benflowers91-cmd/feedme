@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   const userMessage = `Consolidate this shopping list by merging near-duplicates and similar ingredients into single clear entries.
 
 Rules:
-- Merge items that refer to the same ingredient (e.g. "cherry tomatoes", "vine tomatoes", "plum tomatoes" → "tomatoes (mixed, ~20)").
+- Merge items that refer to the same ingredient (e.g. "cherry tomatoes", "vine tomatoes", "plum tomatoes" → "tomatoes").
 - Combine quantities where possible (e.g. "2 chicken breasts" + "1 chicken breast" → "3 chicken breasts").
 - If items are clearly different ingredients, keep them separate.
 - Use plain, readable text (no units jargon). Keep it concise.
@@ -76,6 +76,7 @@ Rules:
 - Use UK English spelling and ingredient names throughout: aubergine (not eggplant), courgette (not zucchini), coriander (not cilantro), spring onion (not scallion), prawns (not shrimp), rocket (not arugula), plain flour (not all-purpose flour), pepper (not bell pepper), chips (not fries), biscuits (not cookies).
 - Convert US measurements to metric: 1 cup liquid → 240ml, 1 cup flour → 120g, 1 cup sugar → 200g, 1 cup rice → 185g, 1 oz → 28g, 1 lb → 450g. Keep tbsp and tsp as-is (used in UK). Use g and ml throughout.
 - If an item matches or closely matches something in the PANTRY, set pantry_note to "you may have this". Never remove an item because of a pantry match — the user decides whether to buy more.
+- CRITICAL — item name format: always write the ingredient name first with no leading quantity or unit. If there is a quantity or amount, append it after a comma. Examples: "chicken thighs, 400g" · "olive oil, 3 tbsp" · "cherry tomatoes, 250g" · "eggs, 4" · "garlic". Never start a name with a number or unit (e.g. do NOT write "400g chicken thighs" or "3 tbsp olive oil").
 ${pantrySection}
 SHOPPING LIST:
 ${itemList}`
