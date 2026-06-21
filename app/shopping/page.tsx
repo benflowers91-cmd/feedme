@@ -200,17 +200,20 @@ export default function ShoppingPage() {
   }
 
   function tescoSearchUrl(itemName: string): string {
-    let s = itemName.trim()
+    // Consolidation stores amounts after the first comma — strip everything from comma onwards
+    let s = itemName.split(',')[0].trim()
     let prev = ''
     while (prev !== s) {
       prev = s
       s = s
         .replace(/^\d+\/\d+\s*/i, '')
         .replace(/^\d+(\.\d+)?\s*/i, '')
-        .replace(/^(tablespoons?|teaspoons?|kilograms?|grams?|millilitres?|milliliters?|centilitres?|centiliters?|litres?|liters?|ounces?|pounds?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?|tbsps?|tsps?|kg|ml|cl|oz|lbs?|g|l)\s*/i, '')
-        .replace(/^(x|×)\s*/i, '')
-        .replace(/^of\s*/i, '')
-        .replace(/^an?\s*/i, '')
+        .replace(/^(tablespoons?|teaspoons?|kilograms?|grams?|millilitres?|milliliters?|centilitres?|centiliters?|litres?|liters?|ounces?|pounds?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?|tbsps?|tsps?)\s*/i, '')
+        // Short units require whitespace or end-of-string after them to avoid eating ingredient names (e.g. "garlic", "lemons")
+        .replace(/^(kg|ml|cl|oz|lbs?|g|l)(?=\s|$)\s*/i, '')
+        .replace(/^(x|×)(?=\s|$)\s*/i, '')
+        .replace(/^of(?=\s|$)\s*/i, '')
+        .replace(/^an?(?=\s|$)\s*/i, '')
         .replace(/^\(.*?\)\s*/i, '')
         .trim()
     }
