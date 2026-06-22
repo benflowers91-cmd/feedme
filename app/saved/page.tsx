@@ -428,9 +428,9 @@ export default function SavedPage() {
 
       {/* Add to plan modal */}
       {planModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setPlanModal(null)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setPlanModal(null)}>
           <div
-            className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl p-5"
+            className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl p-5 pb-24"
             onClick={e => e.stopPropagation()}
           >
             <p className="text-sm font-semibold text-gray-800 mb-1">Add to plan</p>
