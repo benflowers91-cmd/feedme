@@ -7,22 +7,27 @@ const anthropic = new Anthropic()
 
 const TAG_TOOL: Anthropic.Tool = {
   name: 'tag_recipe',
-  description: 'Return meal_type, cuisine, and effort tags for a recipe',
+  description: 'Return meal_type, food_type, cuisine, and effort tags for a recipe',
   input_schema: {
     type: 'object',
     properties: {
-      meal_type: { type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'snack'] },
+      meal_type: {
+        type: 'string',
+        enum: ['breakfast', 'lunch', 'dinner', 'snack', 'main', 'side dish'],
+        description: 'When this recipe is eaten, or its role on the plate if it is a main or a side dish',
+      },
+      food_type: { type: 'string', description: 'Type of food e.g. meat, fish, salad, pasta, soup, vegetarian, vegan' },
       cuisine: { type: 'string', description: 'Cuisine style e.g. italian, mexican, asian, british' },
       effort: { type: 'string', enum: ['quick', 'moderate', 'involved'] },
     },
-    required: ['meal_type', 'cuisine', 'effort'],
+    required: ['meal_type', 'food_type', 'cuisine', 'effort'],
   },
 }
 
 async function tagRecipe(
   title: string,
   ingredientNames: string[],
-): Promise<{ meal_type: string; cuisine: string; effort: string } | null> {
+): Promise<{ meal_type: string; food_type: string; cuisine: string; effort: string } | null> {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -36,7 +41,7 @@ async function tagRecipe(
     })
     const toolBlock = response.content.find(b => b.type === 'tool_use')
     if (!toolBlock || toolBlock.type !== 'tool_use') return null
-    return toolBlock.input as { meal_type: string; cuisine: string; effort: string }
+    return toolBlock.input as { meal_type: string; food_type: string; cuisine: string; effort: string }
   } catch {
     return null
   }
@@ -71,7 +76,12 @@ export async function POST() {
       const tagData = await tagRecipe(recipe.title, ingredientNames)
       if (!tagData) return null
 
-      const tags = [tagData.meal_type, tagData.cuisine.toLowerCase(), tagData.effort].filter(Boolean)
+      const tags = [
+        tagData.meal_type,
+        tagData.food_type.toLowerCase(),
+        tagData.cuisine.toLowerCase(),
+        tagData.effort,
+      ].filter(Boolean)
 
       const { error: updateError } = await supabase
         .from('recipes')
