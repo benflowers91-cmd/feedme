@@ -5,24 +5,38 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic()
 
+const FOOD_TYPES = [
+  'meat', 'poultry', 'fish', 'vegetarian', 'vegan',
+  'salad', 'soup', 'pasta', 'rice', 'baked goods', 'dessert',
+]
+
 const TAG_TOOL: Anthropic.Tool = {
   name: 'tag_recipe',
-  description: 'Return meal_type, cuisine, and effort tags for a recipe',
+  description: 'Return meal_type, food_type, cuisine, and effort tags for a recipe',
   input_schema: {
     type: 'object',
     properties: {
-      meal_type: { type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'snack'] },
+      meal_type: {
+        type: 'string',
+        enum: ['breakfast', 'lunch', 'dinner', 'snack', 'main', 'side dish'],
+        description: 'When the recipe is eaten (breakfast/lunch/dinner/snack), or its role on the plate (main, side dish)',
+      },
+      food_type: {
+        type: 'string',
+        enum: FOOD_TYPES,
+        description: 'The type of food, e.g. meat, salad, pasta',
+      },
       cuisine: { type: 'string', description: 'Cuisine style e.g. italian, mexican, asian, british' },
       effort: { type: 'string', enum: ['quick', 'moderate', 'involved'] },
     },
-    required: ['meal_type', 'cuisine', 'effort'],
+    required: ['meal_type', 'food_type', 'cuisine', 'effort'],
   },
 }
 
 async function tagRecipe(
   title: string,
   ingredientNames: string[],
-): Promise<{ meal_type: string; cuisine: string; effort: string } | null> {
+): Promise<{ meal_type: string; food_type: string; cuisine: string; effort: string } | null> {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -36,7 +50,7 @@ async function tagRecipe(
     })
     const toolBlock = response.content.find(b => b.type === 'tool_use')
     if (!toolBlock || toolBlock.type !== 'tool_use') return null
-    return toolBlock.input as { meal_type: string; cuisine: string; effort: string }
+    return toolBlock.input as { meal_type: string; food_type: string; cuisine: string; effort: string }
   } catch {
     return null
   }
@@ -59,7 +73,7 @@ export async function POST() {
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  const untagged = (recipes ?? []).filter(r => !r.tags || r.tags.length === 0)
+  const untagged = (recipes ?? []).filter(r => !r.tags || r.tags.length === 0 || !r.tags.some((t: string) => FOOD_TYPES.includes(t)))
 
   if (untagged.length === 0) {
     return Response.json({ tagged: 0, results: [] })
@@ -71,7 +85,7 @@ export async function POST() {
       const tagData = await tagRecipe(recipe.title, ingredientNames)
       if (!tagData) return null
 
-      const tags = [tagData.meal_type, tagData.cuisine.toLowerCase(), tagData.effort].filter(Boolean)
+      const tags = [tagData.meal_type, tagData.food_type, tagData.cuisine.toLowerCase(), tagData.effort].filter(Boolean)
 
       const { error: updateError } = await supabase
         .from('recipes')
