@@ -30,6 +30,7 @@ export default function PantryPage() {
   const [adding, setAdding] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mutationError, setMutationError] = useState('')
+  const [clearing, setClearing] = useState(false)
 
   // Scan state
   const [showScan, setShowScan] = useState(false)
@@ -89,6 +90,26 @@ export default function PantryPage() {
       setNewlyAddedIds(prev => { const next = new Set(prev); next.delete(id); return next })
     } catch {
       setMutationError('Failed to remove item — check your connection')
+    }
+  }
+
+  async function clearAll() {
+    if (items.length === 0) return
+    if (!window.confirm(`Remove all ${items.length} item${items.length === 1 ? '' : 's'} from your pantry?`)) return
+    setClearing(true)
+    setMutationError('')
+    try {
+      const res = await fetch('/api/pantry?all=true', { method: 'DELETE' })
+      if (!res.ok) {
+        setMutationError('Failed to clear pantry — try again')
+        return
+      }
+      setItems([])
+      setNewlyAddedIds(new Set())
+    } catch {
+      setMutationError('Failed to clear pantry — check your connection')
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -401,7 +422,20 @@ export default function PantryPage() {
       ) : items.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-8">Your pantry is empty — add some ingredients above.</p>
       ) : (
-        <ul className="space-y-2">
+        <>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-600">
+              {items.length} item{items.length === 1 ? '' : 's'}
+            </h2>
+            <button
+              onClick={clearAll}
+              disabled={clearing}
+              className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-50 transition-colors"
+            >
+              {clearing ? 'Clearing...' : 'Clear all'}
+            </button>
+          </div>
+          <ul className="space-y-2">
           {items.map(item => {
             const isNew = newlyAddedIds.has(item.id)
             return (
@@ -431,7 +465,8 @@ export default function PantryPage() {
               </li>
             )
           })}
-        </ul>
+          </ul>
+        </>
       )}
     </div>
   )

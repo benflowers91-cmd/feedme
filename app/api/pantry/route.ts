@@ -45,14 +45,15 @@ export async function DELETE(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
-  if (!id) return Response.json({ error: 'Missing id' }, { status: 400 })
+  const all = searchParams.get('all')
+
+  if (!id && all !== 'true') return Response.json({ error: 'Missing id' }, { status: 400 })
 
   const supabase = createServerClient()
-  const { error } = await supabase
-    .from('pantry_items')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', session.user.email)
+  let query = supabase.from('pantry_items').delete().eq('user_id', session.user.email)
+  if (id) query = query.eq('id', id)
+
+  const { error } = await query
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return new Response(null, { status: 204 })
