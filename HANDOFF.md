@@ -33,7 +33,7 @@ Low-FODMAP meal planner. Built with Next.js, Supabase, NextAuth, Claude API.
 |---|---|---|
 | `/` | — | Home — today's meals, quick action tiles (no nav tab) |
 | `/pantry` | Pantry | Add/remove ingredients with FODMAP status tags |
-| `/suggest` | Find | AI recipe suggestions from pantry + Tavily web search |
+| `/suggest` | Find | Tavily web recipe search, with Claude-suggested search phrases generated from pantry contents |
 | `/adapt` | Adapt | Fetch from URL or paste text; pick per-ingredient FODMAP substitutions before saving |
 | `/saved` | Saved | Browse all saved recipes; add to meal plan or delete |
 | `/plan` | Plan | Weekly meal planner — assign saved recipes to meal slots |
@@ -50,7 +50,7 @@ app/
   layout.tsx                    # Root layout, PWA metadata, bottom nav
   page.tsx                      # Home (no nav tab)
   pantry/page.tsx
-  suggest/page.tsx              # Find page — Claude suggestions + Tavily web search
+  suggest/page.tsx              # Find page — pantry idea chips + Tavily web search
   adapt/page.tsx                # 2-step: fetch/paste → substitution picker → save
   saved/page.tsx                # Saved recipes list with Add to plan
   plan/page.tsx
@@ -61,10 +61,11 @@ app/
     recipes/route.ts            # GET/POST/PATCH/DELETE recipes (is_saved=true; PATCH toggles is_favourite)
     scrape/route.ts             # POST — fetch URL, extract recipe via JSON-LD
     search/route.ts             # GET — Tavily web recipe search (?q=query)
+    pantry-ideas/route.ts       # POST — Claude suggests 8 recipe search phrases from pantry (no recipe content)
     plan/route.ts               # GET/POST/DELETE meal_plan
     shopping/route.ts           # GET/POST/PATCH/DELETE shopping_items
     adapt/route.ts              # POST — Claude analysis with per-ingredient subs (tool_use)
-    suggest/route.ts            # POST — Claude recipe suggestions from pantry (tool_use)
+    suggest/route.ts            # POST — Claude-written recipe suggestions from pantry (tool_use); not currently called by any page — superseded by pantry-ideas + Tavily search, see below
 components/
   BottomNav.tsx
   Providers.tsx                 # SessionProvider wrapper
@@ -150,11 +151,17 @@ Both Claude routes (`/api/adapt`, `/api/suggest`) use `tool_use` with a typed sc
 - User picks substitutions on the adapt page before saving
 - Recipe text capped at 8,000 characters
 
-**`/api/suggest`**
+**`/api/suggest`** *(orphaned — not wired to any page currently; see "Find page" below)*
 - Model: `claude-sonnet-4-6`
 - Returns 3 complete FODMAP-safe recipes based on pantry items + optional preferences
 - Recipes include full ingredients (with quantities) and step-by-step instructions
 - Can be saved directly without going through the adapt flow
+
+**`/api/pantry-ideas`**
+- Model: `claude-haiku-4-5-20251001`
+- Input: pantry item names (+ optional `exclude` list of previously shown ideas)
+- Output: 8 short recipe *search phrases* only (e.g. "butter bean stew") — never full recipe content
+- Used by the Find page to seed Tavily search without the user needing to know ingredient combinations upfront
 
 **FODMAP profile:** moderate sensitivity — flag triggers, don't be overly restrictive.  
 **Partner shellfish allergy** — never suggest shellfish under any circumstances.
@@ -181,11 +188,15 @@ Both Claude routes (`/api/adapt`, `/api/suggest`) use `tool_use` with a typed sc
 
 ---
 
-## Find page — two sections
+## Find page
 
-**AI suggestions (top):** Auto-loads on page mount using pantry items. Claude generates 3 complete FODMAP-safe recipes. Preferences input ("quick and easy", "Italian") and Refresh button. Results can be saved directly to the recipe library.
+Single search flow — Claude never writes recipe content on this page, it only helps you find real ones.
 
-**Web search (bottom):** User-triggered Tavily search. Finds real recipe pages from the web. Each result has a "Fetch & Adapt" button that sends the URL to `/adapt?url=...` — the adapt flow scrapes and analyses the recipe.
+1. **Manual search** — type any recipe name/idea, hit Search → Tavily returns up to 8 real recipe pages (title, source, snippet).
+2. **Pantry idea chips** — if the pantry has safe/moderate items, a "Recipe ideas from my pantry" button calls `/api/pantry-ideas`, which asks Claude for 8 varied search phrases (different cuisines/meal types) built from the *full* pantry, not just a handful of items. Shown as tappable chips; tapping one fills the search bar and runs the same Tavily search as manual search, sorted by pantry-match count. A "More ideas" action regenerates a fresh batch, excluding ones already shown.
+3. Each result has a "Fetch & Adapt" button that sends the URL to `/adapt?url=...` — the adapt flow scrapes and analyses the recipe.
+
+Replaces an earlier "Use what I have" toggle (sent only the top 6 pantry items into 2 generic Claude-written phrases and auto-ran the search) — that flow gave no visibility or control over what was searched. See `TODO.md` → "Pantry Search" for history.
 
 ---
 
@@ -240,7 +251,7 @@ npm run test:watch  # watch mode for development
 - [x] All 7 pages built and working
 - [x] Google OAuth, Supabase, Vercel deployment
 - [x] Adapt page: URL scraper + interactive per-ingredient substitution picker
-- [x] Find page: Claude suggestions from pantry + Tavily web recipe search
+- [x] Find page: Tavily web recipe search, with Claude-suggested search phrases from pantry contents (idea chips)
 - [x] Saved recipes with Add to plan modal and favourites (heart toggle + filter)
 - [x] Weekly meal planner with navigation
 - [x] Shopping list: generate from plan, manual add, check off, clear

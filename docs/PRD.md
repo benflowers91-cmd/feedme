@@ -1,7 +1,7 @@
 # FeedMe — Product Requirements Document
 
 **Status:** Living document. Update as decisions are made.
-**Last updated:** 2026-06-20
+**Last updated:** 2026-07-12
 
 ---
 
@@ -44,9 +44,11 @@ These rules are currently hardcoded in `lib/fodmap-prompt.ts`. Planned: user-con
 Track what you have at home. Each ingredient tagged with FODMAP status (safe / moderate / avoid). Used by the AI to generate relevant suggestions.
 
 ### Find
-Two modes:
-- **AI suggestions** — Claude generates 3 complete FODMAP-safe recipes based on your pantry items. Good for "what can I make tonight?"
-- **Web search** — Tavily finds real recipes from the web. Good for "I want to make pasta carbonara, show me versions I can adapt." Results link directly into the Adapt flow.
+Web search only — Claude helps you find recipes, it never writes them (Claude-authored recipes were tried and dropped; quality wasn't good enough to trust).
+- **Manual search** — type a recipe name/idea, Tavily finds real recipes from the web. Good for "I want to make pasta carbonara, show me versions I can adapt."
+- **Pantry idea chips** — Claude looks at your full pantry and suggests 8 varied search phrases (different cuisines/meal types) as tappable chips, so you don't have to already know which ingredients combine. Tapping a chip runs the same Tavily search as manual search. A "More ideas" action regenerates a fresh batch.
+
+Results link directly into the Adapt flow via "Fetch & Adapt."
 
 ### Adapt
 Take any recipe (URL or pasted text) and make it FODMAP-safe. Claude analyses each ingredient, flags issues, and suggests substitutions. You pick which subs to apply before saving. Ingredient-by-ingredient control — you're never overruled.
