@@ -25,11 +25,12 @@ export default function FindPage() {
   const [searchError, setSearchError] = useState('')
   const [searched, setSearched] = useState(false)
   const [sortByPantry, setSortByPantry] = useState(false)
-  const [useWhatIHave, setUseWhatIHave] = useState(false)
 
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [pantryLoading, setPantryLoading] = useState(true)
-  const [pantryQueries, setPantryQueries] = useState<string[]>([])
+  const [pantryIdeas, setPantryIdeas] = useState<string[]>([])
+  const [ideasLoading, setIdeasLoading] = useState(false)
+  const [ideasError, setIdeasError] = useState('')
 
   useEffect(() => {
     if (!session) return
@@ -50,13 +51,13 @@ export default function FindPage() {
     return pantryItems.filter(item => matchesHaystack(item.name, hay)).map(item => item.name)
   }
 
-  async function handleWebSearch(overrideQuery?: string) {
+  async function handleWebSearch(overrideQuery?: string, opts?: { pantryRelevant?: boolean }) {
     const q = (overrideQuery ?? searchQuery).trim()
     if (!q) return
     setSearchLoading(true)
     setSearchError('')
     setSearchResults([])
-    setSortByPantry(false)
+    setSortByPantry(!!opts?.pantryRelevant)
     setSearched(true)
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
@@ -73,42 +74,32 @@ export default function FindPage() {
     }
   }
 
-  async function toggleUseWhatIHave() {
-    if (useWhatIHave) {
-      setUseWhatIHave(false)
-      setSearchQuery('')
-      setSearchResults([])
-      setSearched(false)
-      setSearchError('')
-      setPantryQueries([])
-    } else {
-      if (pillItems.length === 0) return
-      setUseWhatIHave(true)
-      setSearchLoading(true)
-      setSearchError('')
-      setSearchResults([])
-      setSearched(true)
-      setPantryQueries([])
-      setSearchQuery('')
-      try {
-        const res = await fetch('/api/pantry-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: pillItems.map(i => i.name) }),
-        })
-        const data = await res.json()
-        if (data.error) {
-          setSearchError(data.error)
-        } else {
-          setSearchResults(data.results ?? [])
-          setPantryQueries(data.queries ?? [])
-        }
-      } catch {
-        setSearchError('Search failed — check your connection')
-      } finally {
-        setSearchLoading(false)
+  async function fetchPantryIdeas(exclude: string[] = []) {
+    if (pillItems.length === 0) return
+    setIdeasLoading(true)
+    setIdeasError('')
+    try {
+      const res = await fetch('/api/pantry-ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: pillItems.map(i => i.name), exclude }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setIdeasError(data.error)
+      } else {
+        setPantryIdeas(data.queries ?? [])
       }
+    } catch {
+      setIdeasError('Could not get ideas — check your connection')
+    } finally {
+      setIdeasLoading(false)
     }
+  }
+
+  function handleIdeaClick(idea: string) {
+    setSearchQuery(idea)
+    handleWebSearch(idea, { pantryRelevant: true })
   }
 
   const pillItems = pantryItems.filter(i => i.fodmap_status === 'safe' || i.fodmap_status === 'moderate')
@@ -131,12 +122,11 @@ export default function FindPage() {
             type="text"
             placeholder="Pasta carbonara, Thai green curry..."
             value={searchQuery}
-            disabled={useWhatIHave}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleWebSearch()}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 pr-8 disabled:bg-gray-50 disabled:text-gray-400"
           />
-          {searchQuery && !useWhatIHave && (
+          {searchQuery && (
             <button
               onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchError(''); setSearched(false) }}
               aria-label="Clear search"
@@ -148,7 +138,7 @@ export default function FindPage() {
         </div>
         <button
           onClick={() => handleWebSearch()}
-          disabled={searchLoading || !searchQuery.trim() || useWhatIHave}
+          disabled={searchLoading || !searchQuery.trim()}
           className="bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-50 shrink-0"
         >
           {searchLoading ? '...' : 'Search'}
@@ -156,39 +146,42 @@ export default function FindPage() {
       </div>
 
       {!pantryLoading && pillItems.length > 0 && (
-        <div className="mb-3">
-          <button
-            onClick={toggleUseWhatIHave}
-            disabled={searchLoading}
-            className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
-              useWhatIHave
-                ? 'bg-green-600 border-green-600 text-white'
-                : 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100'
-            }`}
-          >
-            <span className={`w-8 h-4 rounded-full flex items-center transition-colors ${useWhatIHave ? 'bg-white/30' : 'bg-green-200'}`}>
-              <span className={`w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${useWhatIHave ? 'translate-x-4' : 'translate-x-0'}`} />
-            </span>
-            Use what I have
-          </button>
-          {useWhatIHave && (
-            <div className="mt-2 space-y-2">
+        <div className="mb-4">
+          {pantryIdeas.length === 0 ? (
+            <button
+              onClick={() => fetchPantryIdeas()}
+              disabled={ideasLoading}
+              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
+            >
+              {ideasLoading ? 'Thinking of ideas…' : 'Recipe ideas from my pantry'}
+            </button>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500">Tap an idea to search for it</p>
+                <button
+                  onClick={() => fetchPantryIdeas(pantryIdeas)}
+                  disabled={ideasLoading}
+                  className="text-xs text-green-700 hover:text-green-800 disabled:opacity-50 font-medium"
+                >
+                  {ideasLoading ? '…' : '↻ More ideas'}
+                </button>
+              </div>
               <div className="flex flex-wrap gap-1.5">
-                {pillItems.map(item => (
-                  <span key={item.id} className="text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
-                    {item.name}
-                  </span>
+                {pantryIdeas.map((idea, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleIdeaClick(idea)}
+                    disabled={searchLoading}
+                    className="text-xs px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300 disabled:opacity-50 transition-colors"
+                  >
+                    {idea}
+                  </button>
                 ))}
               </div>
-              {pantryQueries.length > 0 && (
-                <p className="text-xs text-gray-400">
-                  Searching for: {pantryQueries.map((q, i) => (
-                    <span key={i}>{i > 0 ? ' · ' : ''}<em>{q}</em></span>
-                  ))}
-                </p>
-              )}
             </div>
           )}
+          {ideasError && <p className="text-xs text-red-500 mt-2">{ideasError}</p>}
         </div>
       )}
 

@@ -8,6 +8,11 @@
 - [x] **"Use what I have" mode for recipe search**
   Replace the clunky pill-tapping flow with a toggle that auto-builds a Tavily search query from the top pantry ingredients (safe/moderate, top ~6) and fires the search immediately. Manual text input is disabled while the toggle is on. Results are real web recipes — no AI-written content.
   - **File:** `app/suggest/page.tsx`
+  - ~~Superseded~~ — see "Pantry recipe idea chips" below.
+
+- [x] **Pantry recipe idea chips (replaces the toggle above)**
+  The toggle sent only the top 6 pantry items into 2 generic Claude-written search phrases, and required remembering to flip a switch — still left the user guessing at combinations. Replaced with a "Recipe ideas from my pantry" button that asks Claude (from the *full* safe/moderate pantry) for 8 varied search phrases (different cuisines/meal types), shown as tappable chips. Tapping a chip fills the search bar and runs a normal `/api/search` (Tavily) lookup — Claude only ever suggests search terms, it never writes recipe content. A "More ideas" action regenerates a fresh batch, excluding ones already shown. Manual search input is no longer disabled by any mode.
+  - **Files:** `app/api/pantry-ideas/route.ts` (new, replaces `app/api/pantry-search/route.ts`), `app/suggest/page.tsx`
 
 - [ ] **Speed up FODMAP analysis on the Adapt page**
   ~~Speed up recipe search~~ → focus is on the adapt flow.
