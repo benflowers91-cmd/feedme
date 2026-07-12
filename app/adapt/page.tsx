@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { SignInPrompt } from '@/components/SignInPrompt'
@@ -31,11 +31,10 @@ interface AnalysedRecipe {
   fodmap_notes: string
 }
 
-function AdaptPageInner() {
+function AdaptPageInner({ initialUrl }: { initialUrl: string }) {
   const { data: session, status } = useSession()
-  const searchParams = useSearchParams()
 
-  const [urlInput, setUrlInput] = useState('')
+  const [urlInput, setUrlInput] = useState(initialUrl)
   const [recipeText, setRecipeText] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
   const [step, setStep] = useState<'input' | 'analyse'>('input')
@@ -65,27 +64,27 @@ function AdaptPageInner() {
     )
   }
 
-  useEffect(() => {
-    const url = searchParams.get('url')
-    if (url) setUrlInput(url)
-  }, [searchParams])
-
   async function fetchRecipe() {
     if (!urlInput.trim()) return
     setFetching(true)
     setFetchError('')
-    const res = await fetch('/api/scrape', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: urlInput.trim() }),
-    })
-    const data = await res.json()
-    setFetching(false)
-    if (data.error) {
-      setFetchError(data.error)
-    } else {
-      setRecipeText(data.recipe_text)
-      setSourceUrl(urlInput.trim())
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput.trim() }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setFetchError(data.error)
+      } else {
+        setRecipeText(data.recipe_text)
+        setSourceUrl(urlInput.trim())
+      }
+    } catch {
+      setFetchError('Failed to fetch — check your connection')
+    } finally {
+      setFetching(false)
     }
   }
 
@@ -93,27 +92,32 @@ function AdaptPageInner() {
     if (!recipeText.trim()) return
     setAnalysing(true)
     setAnalyseError('')
-    const res = await fetch('/api/adapt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipe_text: recipeText, dietary_requirements: dietaryRequirements }),
-    })
-    const data = await res.json()
-    setAnalysing(false)
-    if (data.error) {
-      setAnalyseError(data.error)
-    } else {
-      setResult({ ...data, instructions: recipeText })
-      const defaults: Record<number, number | 'keep'> = {}
-      data.ingredients.forEach((ing: AnalysedIngredient, i: number) => {
-        if (ing.substitution_options?.length > 0 && (ing.fodmap_status === 'avoid' || ing.fodmap_status === 'moderate')) {
-          defaults[i] = 0
-        } else {
-          defaults[i] = 'keep'
-        }
+    try {
+      const res = await fetch('/api/adapt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipe_text: recipeText, dietary_requirements: dietaryRequirements }),
       })
-      setSelections(defaults)
-      setStep('analyse')
+      const data = await res.json()
+      if (data.error) {
+        setAnalyseError(data.error)
+      } else {
+        setResult({ ...data, instructions: recipeText })
+        const defaults: Record<number, number | 'keep'> = {}
+        data.ingredients.forEach((ing: AnalysedIngredient, i: number) => {
+          if (ing.substitution_options?.length > 0 && (ing.fodmap_status === 'avoid' || ing.fodmap_status === 'moderate')) {
+            defaults[i] = 0
+          } else {
+            defaults[i] = 'keep'
+          }
+        })
+        setSelections(defaults)
+        setStep('analyse')
+      }
+    } catch {
+      setAnalyseError('Failed to analyse — check your connection')
+    } finally {
+      setAnalysing(false)
     }
   }
 
@@ -142,23 +146,28 @@ function AdaptPageInner() {
       const opt = ing.substitution_options[sel as number]
       return { name: opt.substitute, amount: null, unit: null, fodmap_status: 'safe' as const }
     })
-    const res = await fetch('/api/recipes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: result.title,
-        ingredients: finalIngredients,
-        instructions: result.instructions,
-        fodmap_notes: result.fodmap_notes,
-        source_url: sourceUrl || null,
-      }),
-    })
-    setSaving(false)
-    if (!res.ok) {
-      setSaveError('Failed to save — please try again')
-      return
+    try {
+      const res = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: result.title,
+          ingredients: finalIngredients,
+          instructions: result.instructions,
+          fodmap_notes: result.fodmap_notes,
+          source_url: sourceUrl || null,
+        }),
+      })
+      if (!res.ok) {
+        setSaveError('Failed to save — please try again')
+        return
+      }
+      setSaved(true)
+    } catch {
+      setSaveError('Failed to save — check your connection')
+    } finally {
+      setSaving(false)
     }
-    setSaved(true)
   }
 
   if (status === 'loading') return null
@@ -367,10 +376,18 @@ function AdaptPageInner() {
   )
 }
 
+function AdaptPageFromUrl() {
+  const searchParams = useSearchParams()
+  const url = searchParams.get('url') ?? ''
+  // key forces a full remount (and state reset) whenever the ?url= param changes,
+  // e.g. clicking "Fetch & Adapt" on a different search result
+  return <AdaptPageInner key={url} initialUrl={url} />
+}
+
 export default function AdaptPage() {
   return (
     <Suspense fallback={null}>
-      <AdaptPageInner />
+      <AdaptPageFromUrl />
     </Suspense>
   )
 }
