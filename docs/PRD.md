@@ -60,7 +60,7 @@ Your recipe library. Recipes tagged automatically by meal type, cuisine, and eff
 Weekly meal planner. Assign saved recipes to breakfast / lunch / dinner slots. Navigate week by week.
 
 ### Shopping
-Shopping list that generates from your meal plan. Cross-references your pantry to flag items you may already have. Manual add also supported. Check off as you shop.
+Shopping list that generates from your meal plan. Manual add also supported. Check off as you shop. "Consolidate list" merges near-duplicates and cross-references your pantry: confident pantry matches are left off the list entirely (shown in a dismissible "already have this" summary), uncertain matches just get a flag so you decide.
 
 ### Home
 Today's meals at a glance. Quick action tiles.
