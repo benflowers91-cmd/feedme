@@ -29,7 +29,11 @@ export async function POST(request: Request) {
         role: 'user',
         content: `Pantry ingredients: ${items.join(', ')}
 
-Suggest 8 short search terms for complete main-course meals — not side dishes, not single-ingredient preps (e.g. not "roasted cashews" or "sautéed greens") — that could realistically be made using several of these ingredients together. You can assume basic staples are on hand even if not listed (oil, salt, pepper, garlic, rice, pasta, stock) so ideas can be full dishes rather than sparse component pairings. Vary the cuisine and meal type across the 8 — don't suggest near-duplicates (e.g. three different stir fries). Good examples: "butter bean and chorizo stew", "cashew chicken stir fry", "five spice pork noodles".${excludeList.length > 0 ? `\n\nDon't repeat these already-suggested ideas: ${excludeList.join(', ')}` : ''}
+Suggest 8 real, well-known recipe names — the kind of complete main-course dish that's actually published on recipe sites (e.g. "shakshuka", "kedgeree", "chana masala", "baked feta pasta", "nasi goreng") — where at least one of the pantry ingredients above plays a starring role. Use genuine dish names, not invented titles that string ingredients together as a description.
+Bad (fake mashup title): "Tomato sauce pasta with cuttlefish ink and garlic"
+Good (real dish, uses squid/cuttlefish ink from the pantry): "squid ink pasta"
+
+It's fine — expected, even — if a dish needs other ingredients beyond the pantry; the user will build a shopping list for the rest, so don't force every idea to use only what's listed, and don't try to cram multiple pantry items into one invented combo. Avoid single-component ideas too (not "roasted cashews", not "sautéed greens") — these should be full meals. Vary the cuisine and meal type across the 8 — don't suggest near-duplicates.${excludeList.length > 0 ? `\n\nDon't repeat these already-suggested ideas: ${excludeList.join(', ')}` : ''}
 
 Respond with only a JSON array of 8 strings, nothing else.`,
       }],
