@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         role: 'user',
         content: `Pantry ingredients: ${items.join(', ')}
 
-Suggest 8 short recipe search terms that could realistically be made by combining some of these ingredients. Vary the cuisine and meal type across the 8 — don't suggest near-duplicates (e.g. three different stir fries). Each term should combine at least two of the listed ingredients where realistic. Examples: "butter bean stew", "cashew stir fry", "five spice pork".${excludeList.length > 0 ? `\n\nDon't repeat these already-suggested ideas: ${excludeList.join(', ')}` : ''}
+Suggest 8 short search terms for complete main-course meals — not side dishes, not single-ingredient preps (e.g. not "roasted cashews" or "sautéed greens") — that could realistically be made using several of these ingredients together. You can assume basic staples are on hand even if not listed (oil, salt, pepper, garlic, rice, pasta, stock) so ideas can be full dishes rather than sparse component pairings. Vary the cuisine and meal type across the 8 — don't suggest near-duplicates (e.g. three different stir fries). Good examples: "butter bean and chorizo stew", "cashew chicken stir fry", "five spice pork noodles".${excludeList.length > 0 ? `\n\nDon't repeat these already-suggested ideas: ${excludeList.join(', ')}` : ''}
 
 Respond with only a JSON array of 8 strings, nothing else.`,
       }],

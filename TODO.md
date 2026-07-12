@@ -13,6 +13,7 @@
 - [x] **Pantry recipe idea chips (replaces the toggle above)**
   The toggle sent only the top 6 pantry items into 2 generic Claude-written search phrases, and required remembering to flip a switch — still left the user guessing at combinations. Replaced with a "Recipe ideas from my pantry" button that asks Claude (from the *full* safe/moderate pantry) for 8 varied search phrases (different cuisines/meal types), shown as tappable chips. Tapping a chip fills the search bar and runs a normal `/api/search` (Tavily) lookup — Claude only ever suggests search terms, it never writes recipe content. A "More ideas" action regenerates a fresh batch, excluding ones already shown. Manual search input is no longer disabled by any mode.
   - **Files:** `app/api/pantry-ideas/route.ts` (new, replaces `app/api/pantry-search/route.ts`), `app/suggest/page.tsx`
+  - [x] **Fix:** ideas were skewing toward single-component preps/sides (e.g. "roasted cashews") instead of full meals. Prompt now explicitly asks for complete main courses and grants permission to assume basic staples (oil, salt, garlic, rice, pasta, stock) are on hand, so it isn't limited to sparse 2-item pairings from a pantry that's mostly raw ingredients.
 
 - [ ] **Speed up FODMAP analysis on the Adapt page**
   ~~Speed up recipe search~~ → focus is on the adapt flow.
