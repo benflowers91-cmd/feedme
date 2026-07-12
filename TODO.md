@@ -45,3 +45,8 @@
 - [x] **Adapt page: false "Saved" confirmation on POST failure**
   `saveRecipe()` now checks `res.ok` before calling `setSaved(true)` and surfaces a `saveError` message if the POST fails.
   - **File:** `app/adapt/page.tsx`
+
+- [x] **Adapt page: previous recipe stuck in the URL field / state after "Fetch & Adapt" on a new result**
+  The page only synced the `?url=` query param into `urlInput` — it never reset `recipeText`, `sourceUrl`, `result`, or `step`. Since Next only swaps the page segment (not a hard remount) when navigating between two `/adapt?url=...` URLs, clicking "Fetch & Adapt" on a second recipe could leave the first recipe's fetched text/analysis behind. Fixed properly per React's own guidance for "reset all state when a prop changes": the URL param is now read one level up and passed down as `key={url}`, forcing a full remount (and clean state) on every new URL — no manual reset-half-the-fields effect to keep in sync.
+  - Also wrapped `fetchRecipe`, `analyseRecipe`, and `saveRecipe` in try/catch/finally — none of the three handled a thrown `fetch()` (offline, timeout, non-JSON error body), which left the button stuck in its loading state forever with no error shown.
+  - **File:** `app/adapt/page.tsx`
