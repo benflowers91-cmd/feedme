@@ -64,6 +64,7 @@ app/
     pantry-ideas/route.ts       # POST — Claude suggests 8 recipe search phrases from pantry (no recipe content)
     plan/route.ts               # GET/POST/DELETE meal_plan
     shopping/route.ts           # GET/POST/PATCH/DELETE shopping_items
+    shopping/consolidate/route.ts # POST — Claude merges near-duplicates, removes confident pantry matches (tool_use)
     adapt/route.ts              # POST — Claude analysis with per-ingredient subs (tool_use)
     suggest/route.ts            # POST — Claude-written recipe suggestions from pantry (tool_use); not currently called by any page — superseded by pantry-ideas + Tavily search, see below
 components/
@@ -162,6 +163,13 @@ Both Claude routes (`/api/adapt`, `/api/suggest`) use `tool_use` with a typed sc
 - Input: pantry item names (+ optional `exclude` list of previously shown ideas)
 - Output: 8 short recipe *search phrases* only (e.g. "butter bean stew") — never full recipe content
 - Used by the Find page to seed Tavily search without the user needing to know ingredient combinations upfront
+
+**`/api/shopping/consolidate`**
+- Model: `claude-haiku-4-5-20251001`
+- Input: unchecked shopping item names + the user's pantry (name + quantity)
+- Merges near-duplicate/related ingredients into single entries and converts US → metric units
+- Pantry cross-reference is two-tier: a *confident* match (ingredient present, pantry quantity looks sufficient) is left off the list entirely and returned in `removed_from_pantry`; an *uncertain* match (fuzzy match, or pantry quantity might not cover what's needed) stays on the list with a `pantry_note: "you may have this"` flag instead. Nothing is removed on a guess.
+- Shopping page shows a dismissible banner listing anything in `removed_from_pantry` so removals stay visible
 
 **FODMAP profile:** moderate sensitivity — flag triggers, don't be overly restrictive.  
 **Partner shellfish allergy** — never suggest shellfish under any circumstances.
@@ -304,12 +312,8 @@ Replace the hardcoded profile with a user-configurable dietary profile stored in
 
 ---
 
-### 4. Smart shopping list aggregator
-**What:** The current "Generate from plan" feature pulls ingredients from the week's recipes and deduplicates by exact name match. It doesn't handle near-duplicates or unit differences — so a plan with three recipes calling for different tomato varieties produces three separate line items instead of one consolidated buy.  
-The idea: after generating from plan, run a second Claude call that takes the raw ingredient list and returns a consolidated version — collapsing similar items into the most versatile option with a combined quantity (e.g. "8 vine tomatoes, 8 plum tomatoes, 4 cherry tomatoes" → "20 cherry tomatoes").  
-**Approach:** New API route `/api/shopping/consolidate` (POST, takes `items[]` and `pantry[]`, returns consolidated `items[]`). A "Consolidate" button on the shopping page triggers it after generation. The route fetches the user's current pantry alongside the shopping list — if an ingredient is already in the pantry in sufficient quantity, it can be removed from the shopping list entirely or flagged as "you may already have this."  
-**Effort:** Medium. Claude call with tool_use schema (same pattern as adapt/suggest). The tricky part is the consolidation prompt — it needs to be specific about FODMAP-safe substitution logic (e.g. don't consolidate a safe item into an avoid item) and needs to reason about pantry quantities sensibly.  
-**Files:** New `app/api/shopping/consolidate/route.ts`, `app/shopping/page.tsx`.
+### 4. ~~Smart shopping list aggregator~~ — done
+**Status: ✅ Shipped.** This used to describe a proposed feature; it's now built. "Consolidate list" on the shopping page merges near-duplicates/unit differences via Claude, and cross-references the pantry — confident matches (ingredient + sufficient quantity) are removed entirely, uncertain ones get a "you may have this" flag instead of being removed on a guess. See `/api/shopping/consolidate` under "AI (Claude)" above for the current design.
 
 ---
 
