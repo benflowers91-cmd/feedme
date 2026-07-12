@@ -16,6 +16,7 @@ export default function ShoppingPage() {
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
   const [mutationError, setMutationError] = useState('')
   const [pantryNotes, setPantryNotes] = useState<Record<string, string>>({})
+  const [removedFromPantry, setRemovedFromPantry] = useState<string[]>([])
 
   useEffect(() => {
     if (!session) return
@@ -226,6 +227,7 @@ export default function ShoppingPage() {
     setConsolidating(true)
     setMutationError('')
     setPantryNotes({})
+    setRemovedFromPantry([])
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 55_000)
     try {
@@ -280,6 +282,7 @@ export default function ShoppingPage() {
         if (item.pantry_note) notes[item.name] = item.pantry_note
       }
       setPantryNotes(notes)
+      setRemovedFromPantry(Array.isArray(data?.removed_from_pantry) ? data.removed_from_pantry : [])
     } catch (err) {
       clearTimeout(timeout)
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -345,6 +348,21 @@ export default function ShoppingPage() {
         >
           {consolidating ? 'Consolidating...' : '✨ Consolidate list'}
         </button>
+      )}
+
+      {removedFromPantry.length > 0 && (
+        <div className="flex items-start justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+          <p className="text-xs text-amber-700">
+            Left off the list — looks like you already have: {removedFromPantry.join(', ')}
+          </p>
+          <button
+            onClick={() => setRemovedFromPantry([])}
+            aria-label="Dismiss"
+            className="text-amber-400 hover:text-amber-600 shrink-0 text-sm leading-none"
+          >
+            ×
+          </button>
+        </div>
       )}
 
       <form onSubmit={addItem} className="flex gap-2 mb-4">
