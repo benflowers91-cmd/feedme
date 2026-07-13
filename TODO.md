@@ -34,6 +34,8 @@
   Pass the user's pantry to the consolidate Claude call alongside shopping items. Claude returns a `pantry_note` per item if it thinks the user already has it. UI shows a "you may have this" flag — nothing is auto-removed, user decides.
   - **Files:** `app/shopping/page.tsx`, `app/api/shopping/consolidate/route.ts`
   - [x] **Update:** now actually removes confident pantry matches instead of only flagging them. Claude returns a separate `removed_from_pantry` list (only for close, confident matches — uncertain ones still just get the `pantry_note` flag); the shopping page shows a dismissible "left off the list — looks like you already have: X, Y" banner so removals stay visible. Also fixed the pantry query only selecting `name` (not `quantity`), so Claude had no way to judge whether the pantry had *enough* of something.
+  - [x] **Update:** merging was too conservative — different varieties/forms of the same ingredient (e.g. "1 small cucumber" + "1 Persian cucumber") were being left as separate near-identical lines instead of one. Prompt now explicitly merges varieties/cultivars/forms of the same base ingredient (unless the FODMAP-safety rule forbids it) and collapses mismatched quantity descriptors (small/large, count vs weight) into a single sensible combined amount rather than concatenating them.
+  - **File:** `app/api/shopping/consolidate/route.ts`
 
 ---
 
