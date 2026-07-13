@@ -69,12 +69,13 @@ export async function POST(request: Request) {
 
   const itemList = items.map((name: string) => `- ${name}`).join('\n')
 
-  const userMessage = `Consolidate this shopping list by merging near-duplicates and similar ingredients into single clear entries.
+  const userMessage = `Consolidate this shopping list aggressively: every distinct ingredient should appear as exactly ONE line, with all matching or closely related entries merged into it — even if they used different varieties, sizes, forms, or units in the original list.
 
 Rules:
-- Merge items that refer to the same ingredient (e.g. "cherry tomatoes", "vine tomatoes", "plum tomatoes" → "tomatoes").
-- Combine quantities where possible (e.g. "2 chicken breasts" + "1 chicken breast" → "3 chicken breasts").
-- If items are clearly different ingredients, keep them separate.
+- Merge items that refer to the same base ingredient, including different varieties/cultivars/forms of it (e.g. "cherry tomatoes", "vine tomatoes", "plum tomatoes" → "tomatoes"; "1 small cucumber" + "1 Persian cucumber" → "cucumber, 1 large"; "red onion" + "brown onion" → "onions"). Only keep varieties separate if the recipe context means the specific variety actually matters (rare) or if merging would violate the FODMAP rule below.
+- When merging, collapse the quantities into a SINGLE combined amount for that one line — never leave two size/quantity descriptors dangling on the same ingredient. If inputs are simple counts, add them (e.g. "2 chicken breasts" + "1 chicken breast" → "chicken breasts, 3"). If inputs use mismatched descriptors (small/medium/large, count vs weight, vague vs precise), use your judgement to produce one sensible real-world quantity that would cover both original amounts — round to a natural shopping quantity (e.g. two small/medium items of the same thing → bump to "1 large" or "2", don't just concatenate "1 small + 1 medium").
+- Each ingredient should end up as ONE line in the output — do not emit the same base ingredient twice.
+- If items are clearly different ingredients (not just different varieties/forms of the same thing), keep them separate.
 - Use plain, readable text (no units jargon). Keep it concise.
 - Return only the consolidated items — no extra explanation.
 - Preserve FODMAP-safe substitutions: never consolidate a safe ingredient into a high-FODMAP one.
