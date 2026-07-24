@@ -14,6 +14,16 @@ const STATUS_STYLES: Record<string, string> = {
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 
+type GroupKey = MealType | 'other'
+const GROUP_ORDER: GroupKey[] = ['breakfast', 'lunch', 'dinner', 'snack', 'other']
+const GROUP_LABELS: Record<GroupKey, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snack',
+  other: 'Other',
+}
+
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
     <svg viewBox="0 0 24 24" className="w-4 h-4" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
@@ -34,6 +44,7 @@ export default function SavedPage() {
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'favourites'>('all')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({})
   const [savingTags, setSavingTags] = useState<string | null>(null)
@@ -158,6 +169,15 @@ export default function SavedPage() {
     }
   }
 
+  function toggleGroup(key: GroupKey) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   function openPlanModal(recipe: Recipe) {
     const now = new Date()
     const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
@@ -179,6 +199,17 @@ export default function SavedPage() {
       }
       return 0
     })
+
+  const groupedRecipes = GROUP_ORDER.reduce((acc, key) => {
+    acc[key] = []
+    return acc
+  }, {} as Record<GroupKey, Recipe[]>)
+
+  displayedRecipes.forEach(recipe => {
+    const tags = recipe.tags ?? []
+    const match = MEAL_TYPES.find(mealType => tags.includes(mealType))
+    groupedRecipes[match ?? 'other'].push(recipe)
+  })
 
   return (
     <div>
@@ -262,11 +293,35 @@ export default function SavedPage() {
           <p className="text-xs text-gray-400">Adapt a recipe to get started.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {displayedRecipes.map(recipe => {
-            const isExpanded = expandedId === recipe.id
-            const tags = recipe.tags ?? []
+        <div className="space-y-4">
+          {GROUP_ORDER.filter(key => groupedRecipes[key].length > 0).map(key => {
+            const groupRecipes = groupedRecipes[key]
+            const isCollapsed = collapsedGroups.has(key)
             return (
+              <div key={key}>
+                <button
+                  className="w-full flex items-center justify-between px-1 py-2 text-left"
+                  onClick={() => toggleGroup(key)}
+                >
+                  <span className="text-sm font-semibold text-gray-700">
+                    {GROUP_LABELS[key]} <span className="text-gray-400 font-normal">({groupRecipes.length})</span>
+                  </span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-3">
+                    {groupRecipes.map(recipe => {
+                      const isExpanded = expandedId === recipe.id
+                      const tags = recipe.tags ?? []
+                      return (
               <div key={recipe.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <button
                   className="w-full px-4 py-3 flex items-start justify-between text-left gap-3"
@@ -418,6 +473,11 @@ export default function SavedPage() {
                         {deleting === recipe.id ? '...' : 'Delete'}
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
