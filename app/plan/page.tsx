@@ -163,11 +163,14 @@ export default function PlanPage() {
         return
       }
       const failed = body.errors?.length ?? 0
-      setCalendarMessage(
-        failed > 0
-          ? `Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'}, ${failed} failed`
-          : `Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'} to your calendar`
-      )
+      if (failed > 0) {
+        const detail = body.errors
+          .map((e: { title: string; message: string }) => `${e.title}: ${e.message}`)
+          .join('; ')
+        setCalendarMessage(`Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'}, ${failed} failed — ${detail}`)
+      } else {
+        setCalendarMessage(`Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'} to your calendar`)
+      }
     } catch {
       setMutationError('Failed to push to calendar — check your connection')
     } finally {
