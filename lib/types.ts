@@ -45,6 +45,7 @@ export interface MealPlanEntry {
   recipe_id: string | null
   recipe_title: string | null
   notes: string | null
+  calendar_event_id: string | null
 }
 
 export interface ShoppingItem {

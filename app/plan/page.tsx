@@ -44,6 +44,8 @@ export default function PlanPage() {
   const [loading, setLoading] = useState(true)
   const [mutationError, setMutationError] = useState('')
   const [creatingShoppingList, setCreatingShoppingList] = useState(false)
+  const [pushingCalendar, setPushingCalendar] = useState(false)
+  const [calendarMessage, setCalendarMessage] = useState('')
 
   const weekDates = getWeekDates(weekOffset)
   const from = weekDates[0]
@@ -145,6 +147,34 @@ export default function PlanPage() {
     }
   }
 
+  async function pushToCalendar() {
+    setPushingCalendar(true)
+    setMutationError('')
+    setCalendarMessage('')
+    try {
+      const res = await fetch('/api/plan/push-calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        setMutationError(body.error ?? 'Failed to push to calendar — try again')
+        return
+      }
+      const failed = body.errors?.length ?? 0
+      setCalendarMessage(
+        failed > 0
+          ? `Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'}, ${failed} failed`
+          : `Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'} to your calendar`
+      )
+    } catch {
+      setMutationError('Failed to push to calendar — check your connection')
+    } finally {
+      setPushingCalendar(false)
+    }
+  }
+
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
@@ -185,13 +215,25 @@ export default function PlanPage() {
       )}
 
       {!loading && (
-        <button
-          onClick={createShoppingList}
-          disabled={creatingShoppingList}
-          className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors mb-4"
-        >
-          {creatingShoppingList ? 'Creating...' : '🛒 Create shopping list from this plan'}
-        </button>
+        <div className="space-y-2 mb-4">
+          <button
+            onClick={createShoppingList}
+            disabled={creatingShoppingList}
+            className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors"
+          >
+            {creatingShoppingList ? 'Creating...' : '🛒 Create shopping list from this plan'}
+          </button>
+          <button
+            onClick={pushToCalendar}
+            disabled={pushingCalendar}
+            className="w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl py-2.5 text-sm font-medium hover:bg-blue-100 disabled:opacity-50 transition-colors"
+          >
+            {pushingCalendar ? 'Pushing...' : '📅 Push to Google Calendar'}
+          </button>
+          {calendarMessage && (
+            <p className="text-xs text-gray-500 text-center">{calendarMessage}</p>
+          )}
+        </div>
       )}
 
       {loading ? (

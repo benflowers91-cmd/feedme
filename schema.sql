@@ -30,6 +30,7 @@ create table meal_plan (
   recipe_id uuid references recipes(id) on delete set null,
   recipe_title text,
   notes text,
+  calendar_event_id text,
   unique (user_id, plan_date, meal_type)
 );
 

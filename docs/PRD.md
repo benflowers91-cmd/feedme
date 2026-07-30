@@ -97,6 +97,11 @@ Today's meals at a glance. Quick action tiles.
 
 ## Roadmap (roughly prioritised)
 
+### Top priority
+- **Push weekly plan to Google Calendar** — after planning the week, one action creates calendar events for breakfast (9:00), lunch (12:30), and dinner (18:00) each day, titled with that slot's recipe. Scoped as a one-off push (re-running it re-creates/overwrites that week's events), not live two-way sync — two-way sync is a later, separate roadmap item once the one-off push is validated in daily use.
+  - **Why it's top priority (ICE):** Impact 9 (directly targets the stated problem — forgetting/deviating from the plan) × Confidence 8 (Calendar API is well-understood; existing Google OAuth login can be extended with the Calendar scope) × Ease 7 (one manual action, no sync-state tracking needed) — highest score on the current backlog.
+  - **Not in scope yet:** editing/deleting synced events when the plan changes after the push, and Google Tasks (rejected — Tasks lack reliable time-based notifications, which is the actual point of this feature).
+
 ### Small wins
 - **"Adapt another recipe" button** — reset state after saving, avoid navigating away and back
 - **Copy shopping list to clipboard** — one button, no dependencies, works everywhere
