@@ -1,5 +1,12 @@
 # FeedMe – To Do
 
+## Google Calendar sync (top priority — see PRD Roadmap)
+
+- [ ] **Push weekly plan to Google Calendar (one-off push)**
+  Button on the Plan page: for the currently viewed week, create a Google Calendar event per meal slot that has a recipe assigned — breakfast 9:00, lunch 12:30, dinner 18:00, titled with the recipe name. Re-running it for the same week overwrites/recreates that week's pushed events (not live sync — no tracking of edits made after the push).
+  - Needs: Calendar scope added to the existing Google OAuth (NextAuth) consent; a way to map "this week's plan" to calendar event start/end times per day; a new API route to create the events.
+  - Out of scope for this pass: two-way sync, editing a plan slot after it's been pushed, Google Tasks integration.
+
 ## Pantry Search
 
 - [x] **Add clear button to pantry search bar**
