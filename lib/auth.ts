@@ -1,30 +1,12 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import { refreshGoogleAccessToken } from '@/lib/google-calendar'
 
 declare module 'next-auth/jwt' {
   interface JWT {
     access_token?: string
     refresh_token?: string
     expires_at?: number
-  }
-}
-
-async function refreshGoogleAccessToken(refreshToken: string) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  })
-  if (!res.ok) throw new Error('Failed to refresh Google access token')
-  const data = await res.json()
-  return {
-    access_token: data.access_token as string,
-    expires_at: Math.floor(Date.now() / 1000) + (data.expires_in as number),
   }
 }
 

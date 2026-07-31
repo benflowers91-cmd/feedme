@@ -6,6 +6,8 @@ import { createServerClient } from '@/lib/supabase'
 import { refreshGoogleAccessToken, upsertCalendarEvent, MEAL_TIMES } from '@/lib/google-calendar'
 import type { MealPlanEntry } from '@/lib/types'
 
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
@@ -53,24 +55,30 @@ export async function POST(request: NextRequest) {
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   const toPush = ((entries ?? []) as MealPlanEntry[]).filter(e => e.recipe_title)
+  const finalAccessToken = accessToken
 
-  let pushed = 0
-  const errors: { title: string; message: string }[] = []
-
-  for (const entry of toPush) {
-    try {
-      const eventId = await upsertCalendarEvent(accessToken, entry)
+  const results = await Promise.allSettled(
+    toPush.map(async entry => {
+      const eventId = await upsertCalendarEvent(finalAccessToken, entry)
       if (eventId !== entry.calendar_event_id) {
         await supabase.from('meal_plan').update({ calendar_event_id: eventId }).eq('id', entry.id)
       }
+    })
+  )
+
+  let pushed = 0
+  const errors: { title: string; message: string }[] = []
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
       pushed++
-    } catch (err) {
+    } else {
+      const entry = toPush[i]
       errors.push({
         title: entry.recipe_title ?? entry.meal_type,
-        message: err instanceof Error ? err.message : 'Unknown error',
+        message: result.reason instanceof Error ? result.reason.message : 'Unknown error',
       })
     }
-  }
+  })
 
   return Response.json({
     pushed,

@@ -9,6 +9,15 @@ export const MEAL_TIMES: Record<string, [string, string]> = {
   dinner: ['18:00', '18:30'],
 }
 
+async function readGoogleErrorMessage(res: Response): Promise<string> {
+  try {
+    const data = await res.json()
+    return data?.error?.message || data?.error_description || res.statusText || `HTTP ${res.status}`
+  } catch {
+    return res.statusText || `HTTP ${res.status}`
+  }
+}
+
 export async function refreshGoogleAccessToken(refreshToken: string) {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -20,7 +29,7 @@ export async function refreshGoogleAccessToken(refreshToken: string) {
       refresh_token: refreshToken,
     }),
   })
-  if (!res.ok) throw new Error('Failed to refresh Google access token')
+  if (!res.ok) throw new Error(`Failed to refresh Google access token: ${await readGoogleErrorMessage(res)}`)
   const data = await res.json()
   return {
     access_token: data.access_token as string,
@@ -56,7 +65,7 @@ export async function upsertCalendarEvent(accessToken: string, entry: MealPlanEn
       return data.id as string
     }
     if (patchRes.status !== 404) {
-      throw new Error(`Google Calendar update failed (${patchRes.status})`)
+      throw new Error(`Google Calendar update failed: ${await readGoogleErrorMessage(patchRes)}`)
     }
     // Event was deleted on the Google Calendar side — fall through to create a new one.
   }
@@ -67,7 +76,7 @@ export async function upsertCalendarEvent(accessToken: string, entry: MealPlanEn
     body: JSON.stringify(payload),
   })
   if (!postRes.ok) {
-    throw new Error(`Google Calendar create failed (${postRes.status})`)
+    throw new Error(`Google Calendar create failed: ${await readGoogleErrorMessage(postRes)}`)
   }
   const data = await postRes.json()
   return data.id as string
