@@ -76,7 +76,7 @@ ${recipe_text}`
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 4000,
       tools: [ANALYSE_TOOL],
       tool_choice: { type: 'tool', name: 'analyse_recipe' },
       system: [
@@ -93,7 +93,16 @@ ${recipe_text}`
     if (!toolBlock || toolBlock.type !== 'tool_use') {
       return Response.json({ error: 'Unexpected response from Claude' }, { status: 500 })
     }
-    return Response.json(toolBlock.input)
+
+    const input = toolBlock.input as Record<string, unknown>
+    if (!Array.isArray(input.ingredients) || typeof input.title !== 'string') {
+      console.error('Malformed adapt response:', response.stop_reason, JSON.stringify(input))
+      const message = response.stop_reason === 'max_tokens'
+        ? 'This recipe has too many ingredients to analyse in one go — try trimming it down'
+        : 'Claude returned an incomplete analysis — please try again'
+      return Response.json({ error: message }, { status: 500 })
+    }
+    return Response.json(input)
   } catch (err) {
     console.error('Claude adapt error:', err)
     return Response.json({ error: 'Failed to adapt recipe — please try again' }, { status: 500 })

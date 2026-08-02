@@ -110,6 +110,8 @@ function AdaptPageInner({ initialUrl }: { initialUrl: string }) {
       const data = await res.json()
       if (data.error) {
         setAnalyseError(data.error)
+      } else if (!Array.isArray(data.ingredients)) {
+        setAnalyseError('Unexpected response from the server — please try again')
       } else {
         setResult({ ...data, instructions: recipeText })
         const defaults: Record<number, number | 'keep'> = {}

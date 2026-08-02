@@ -103,4 +103,30 @@ describe('POST /api/adapt', () => {
     const body = await res.json()
     expect(body.error).toMatch(/Unexpected/)
   })
+
+  it('returns 500 with a trim-recipe message when generation is cut off by max_tokens', async () => {
+    mockGetServerSession.mockResolvedValue(FAKE_SESSION)
+    mockCreate.mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [{ type: 'tool_use', id: 'toolu_test', name: 'analyse_recipe', input: { title: 'Big Recipe' } }],
+    })
+
+    const res = await POST(makeRequest({ recipe_text: 'A recipe with many ingredients' }))
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toMatch(/too many ingredients/)
+  })
+
+  it('returns 500 when the tool input is missing ingredients for a non-truncation reason', async () => {
+    mockGetServerSession.mockResolvedValue(FAKE_SESSION)
+    mockCreate.mockResolvedValue({
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', id: 'toolu_test', name: 'analyse_recipe', input: { title: 'Odd Recipe' } }],
+    })
+
+    const res = await POST(makeRequest({ recipe_text: 'Some recipe' }))
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toMatch(/incomplete analysis/)
+  })
 })
