@@ -92,12 +92,21 @@ function AdaptPageInner({ initialUrl }: { initialUrl: string }) {
     if (!recipeText.trim()) return
     setAnalysing(true)
     setAnalyseError('')
+
+    let res: Response
     try {
-      const res = await fetch('/api/adapt', {
+      res = await fetch('/api/adapt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipe_text: recipeText, dietary_requirements: dietaryRequirements }),
       })
+    } catch {
+      setAnalyseError('Failed to analyse — check your connection')
+      setAnalysing(false)
+      return
+    }
+
+    try {
       const data = await res.json()
       if (data.error) {
         setAnalyseError(data.error)
@@ -115,7 +124,8 @@ function AdaptPageInner({ initialUrl }: { initialUrl: string }) {
         setStep('analyse')
       }
     } catch {
-      setAnalyseError('Failed to analyse — check your connection')
+      // Non-JSON response (e.g. a platform-level timeout/crash page) — not a client connectivity issue.
+      setAnalyseError(`Failed to analyse (server error ${res.status}) — please try again`)
     } finally {
       setAnalysing(false)
     }
