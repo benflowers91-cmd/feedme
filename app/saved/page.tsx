@@ -44,6 +44,7 @@ export default function SavedPage() {
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'favourites'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({})
@@ -190,9 +191,21 @@ export default function SavedPage() {
   const allTags = [...new Set(recipes.flatMap(r => r.tags ?? []))].sort()
   const favouriteCount = recipes.filter(r => r.is_favourite).length
 
+  const normalisedSearch = searchQuery.trim().toLowerCase()
+
   const displayedRecipes = recipes
     .filter(r => filter === 'favourites' ? r.is_favourite : true)
     .filter(r => tagFilter ? (r.tags ?? []).includes(tagFilter) : true)
+    .filter(r => {
+      if (!normalisedSearch) return true
+      const haystack = [
+        r.title,
+        r.fodmap_notes,
+        ...(r.tags ?? []),
+        ...(r.ingredients ?? []).map(i => i.name),
+      ].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(normalisedSearch)
+    })
     .sort((a, b) => {
       if (filter !== 'favourites') {
         if (a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
@@ -217,6 +230,26 @@ export default function SavedPage() {
 
       {recipes.length > 0 && (
         <div className="mb-4 space-y-2">
+          {/* Search */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search saved recipes..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 pr-8"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
           {/* Favourites / All filter + Auto-tag */}
           <div className="flex gap-2 flex-wrap items-center">
             <button
@@ -286,6 +319,11 @@ export default function SavedPage() {
         <div className="text-center py-12">
           <p className="text-sm text-gray-400 mb-1">No recipes tagged &ldquo;{tagFilter}&rdquo;.</p>
           <button onClick={() => setTagFilter(null)} className="text-xs text-blue-600 hover:underline">Clear filter</button>
+        </div>
+      ) : displayedRecipes.length === 0 && normalisedSearch ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-400 mb-1">No recipes match &ldquo;{searchQuery}&rdquo;.</p>
+          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 hover:underline">Clear search</button>
         </div>
       ) : displayedRecipes.length === 0 ? (
         <div className="text-center py-12">
