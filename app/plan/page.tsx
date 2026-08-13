@@ -359,23 +359,28 @@ export default function PlanPage() {
             </div>
             {recipes.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">No saved recipes yet. Use Find or Adapt to save some first.</p>
-            ) : (
-              <ul className="divide-y divide-gray-50 pb-6">
-                {recipes.map(recipe => (
-                  <li key={recipe.id}>
-                    <button
-                      onClick={() => assignRecipe(recipe)}
-                      className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors"
-                    >
-                      <p className="text-sm font-medium text-gray-800">{recipe.title}</p>
-                      {recipe.fodmap_notes && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{recipe.fodmap_notes}</p>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            ) : (() => {
+              const filtered = recipes.filter(r => r.tags.length === 0 || r.tags.includes(picking.meal_type))
+              return filtered.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No recipes tagged for {picking.meal_type}.</p>
+              ) : (
+                <ul className="divide-y divide-gray-50 pb-6">
+                  {filtered.map(recipe => (
+                    <li key={recipe.id}>
+                      <button
+                        onClick={() => assignRecipe(recipe)}
+                        className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors"
+                      >
+                        <p className="text-sm font-medium text-gray-800">{recipe.title}</p>
+                        {recipe.fodmap_notes && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">{recipe.fodmap_notes}</p>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            })()}
           </div>
         </div>
       )}
