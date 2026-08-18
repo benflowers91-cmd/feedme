@@ -14,14 +14,14 @@ const STATUS_STYLES: Record<string, string> = {
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 
-type GroupKey = MealType | 'other'
-const GROUP_ORDER: GroupKey[] = ['breakfast', 'lunch', 'dinner', 'snack', 'other']
+type GroupKey = MealType | 'needs_meal_type'
+const GROUP_ORDER: GroupKey[] = ['breakfast', 'lunch', 'dinner', 'snack', 'needs_meal_type']
 const GROUP_LABELS: Record<GroupKey, string> = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
   snack: 'Snack',
-  other: 'Other',
+  needs_meal_type: 'Needs meal type',
 }
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -107,6 +107,11 @@ export default function SavedPage() {
     const newTags = (recipe.tags ?? []).filter(t => t !== tag)
     updateTags(recipe, newTags)
     if (tagFilter === tag) setTagFilter(null)
+  }
+
+  function setMealType(recipe: Recipe, mealType: MealType) {
+    const rest = (recipe.tags ?? []).filter(t => !MEAL_TYPES.includes(t as MealType))
+    updateTags(recipe, [mealType, ...rest])
   }
 
   async function autoTagAll() {
@@ -208,7 +213,7 @@ export default function SavedPage() {
   displayedRecipes.forEach(recipe => {
     const tags = recipe.tags ?? []
     const match = MEAL_TYPES.find(mealType => tags.includes(mealType))
-    groupedRecipes[match ?? 'other'].push(recipe)
+    groupedRecipes[match ?? 'needs_meal_type'].push(recipe)
   })
 
   return (
@@ -360,6 +365,21 @@ export default function SavedPage() {
                         </span>
                       ))}
                     </div>
+                    {key === 'needs_meal_type' && (
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-xs text-amber-600">Set meal type:</span>
+                        {MEAL_TYPES.map(mealType => (
+                          <button
+                            key={mealType}
+                            onClick={e => { e.stopPropagation(); setMealType(recipe, mealType) }}
+                            disabled={savingTags === recipe.id}
+                            className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 capitalize disabled:opacity-50"
+                          >
+                            {mealType}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0 mt-0.5">
                     <button

@@ -13,8 +13,8 @@ const TAG_TOOL: Anthropic.Tool = {
     properties: {
       meal_type: {
         type: 'string',
-        enum: ['breakfast', 'lunch', 'dinner', 'snack', 'main', 'side dish'],
-        description: 'When this recipe is eaten, or its role on the plate if it is a main or a side dish',
+        enum: ['breakfast', 'lunch', 'dinner', 'snack'],
+        description: 'When this recipe is eaten',
       },
       food_type: { type: 'string', description: 'Type of food e.g. meat, fish, salad, pasta, soup, vegetarian, vegan' },
       cuisine: { type: 'string', description: 'Cuisine style e.g. italian, mexican, asian, british' },
