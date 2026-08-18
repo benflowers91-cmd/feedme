@@ -14,11 +14,21 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
+const FEED_ME_MEALS: MealType[] = ['breakfast', 'lunch', 'dinner']
 const MEAL_EMOJI: Record<MealType, string> = {
   breakfast: '🌅',
   lunch: '☀️',
   dinner: '🌙',
   snack: '🍎',
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
 }
 
 function getWeekDates(offset = 0) {
@@ -46,6 +56,8 @@ export default function PlanPage() {
   const [creatingShoppingList, setCreatingShoppingList] = useState(false)
   const [pushingCalendar, setPushingCalendar] = useState(false)
   const [calendarMessage, setCalendarMessage] = useState('')
+  const [feedingMe, setFeedingMe] = useState(false)
+  const [feedMeMessage, setFeedMeMessage] = useState('')
 
   const weekDates = getWeekDates(weekOffset)
   const from = weekDates[0]
@@ -175,6 +187,81 @@ export default function PlanPage() {
     }
   }
 
+  async function feedMe() {
+    setFeedingMe(true)
+    setMutationError('')
+    setFeedMeMessage('')
+    try {
+      const pools: Record<MealType, Recipe[]> = {
+        breakfast: shuffle(recipes.filter(r => r.tags.length === 0 || r.tags.includes('breakfast'))),
+        lunch: shuffle(recipes.filter(r => r.tags.length === 0 || r.tags.includes('lunch'))),
+        dinner: shuffle(recipes.filter(r => r.tags.length === 0 || r.tags.includes('dinner'))),
+        snack: [],
+      }
+      const cursors: Record<MealType, number> = { breakfast: 0, lunch: 0, dinner: 0, snack: 0 }
+
+      const assignments: { date: string; meal_type: MealType; recipe: Recipe }[] = []
+      let skipped = 0
+      for (const date of weekDates) {
+        for (const meal of FEED_ME_MEALS) {
+          if (planMap[`${date}:${meal}`]) continue
+          const pool = pools[meal]
+          if (pool.length === 0) {
+            skipped++
+            continue
+          }
+          assignments.push({ date, meal_type: meal, recipe: pool[cursors[meal] % pool.length] })
+          cursors[meal]++
+        }
+      }
+
+      if (assignments.length === 0) {
+        setFeedMeMessage(
+          skipped > 0
+            ? 'No saved recipes tagged breakfast, lunch, or dinner — tag some on the Saved page first.'
+            : 'Every slot this week already has a meal.'
+        )
+        return
+      }
+
+      const responses = await Promise.all(assignments.map(a =>
+        fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan_date: a.date,
+            meal_type: a.meal_type,
+            recipe_id: a.recipe.id,
+            recipe_title: a.recipe.title,
+          }),
+        })
+      ))
+
+      const newEntries: MealPlanEntry[] = await Promise.all(
+        responses.filter(r => r.ok).map(r => r.json())
+      )
+      const failed = responses.length - newEntries.length
+
+      setPlan(prev => {
+        let next = prev
+        for (const entry of newEntries) {
+          const key = `${entry.plan_date}:${entry.meal_type}`
+          next = [...next.filter(e => `${e.plan_date}:${e.meal_type}` !== key), entry]
+        }
+        return next
+      })
+
+      const parts = [`Filled ${newEntries.length} meal${newEntries.length === 1 ? '' : 's'}`]
+      if (skipped > 0) parts.push(`${skipped} skipped — no tagged recipes`)
+      if (failed > 0) parts.push(`${failed} failed`)
+      setFeedMeMessage(parts.join(' · '))
+    } catch {
+      setMutationError('Failed to fill the plan — check your connection')
+    } finally {
+      setFeedingMe(false)
+    }
+  }
+
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
@@ -216,6 +303,16 @@ export default function PlanPage() {
 
       {!loading && (
         <div className="space-y-2 mb-4">
+          <button
+            onClick={feedMe}
+            disabled={feedingMe || recipes.length === 0}
+            className="w-full bg-amber-50 border border-amber-200 text-amber-700 rounded-xl py-2.5 text-sm font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors"
+          >
+            {feedingMe ? 'Filling your week...' : '🍽️ Feed me'}
+          </button>
+          {feedMeMessage && (
+            <p className="text-xs text-gray-500 text-center">{feedMeMessage}</p>
+          )}
           <button
             onClick={createShoppingList}
             disabled={creatingShoppingList}
