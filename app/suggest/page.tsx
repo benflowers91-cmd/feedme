@@ -6,14 +6,7 @@ import { useRouter } from 'next/navigation'
 import { SignInPrompt } from '@/components/SignInPrompt'
 import type { RecipeSearchResult } from '@/app/api/search/route'
 import type { PantryItem } from '@/lib/types'
-
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function matchesHaystack(name: string, hay: string): boolean {
-  return new RegExp(`\\b${escapeRegex(name)}\\b`, 'i').test(hay)
-}
+import { matchesHaystack } from '@/lib/plan-utils'
 
 export default function FindPage() {
   const { data: session, status } = useSession()
