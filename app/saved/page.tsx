@@ -44,6 +44,7 @@ export default function SavedPage() {
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'favourites'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({})
@@ -195,14 +196,15 @@ export default function SavedPage() {
   const allTags = [...new Set(recipes.flatMap(r => r.tags ?? []))].sort()
   const favouriteCount = recipes.filter(r => r.is_favourite).length
 
+  const trimmedSearch = searchQuery.trim().toLowerCase()
+
   const displayedRecipes = recipes
     .filter(r => filter === 'favourites' ? r.is_favourite : true)
     .filter(r => tagFilter ? (r.tags ?? []).includes(tagFilter) : true)
+    .filter(r => trimmedSearch ? r.title.toLowerCase().includes(trimmedSearch) : true)
     .sort((a, b) => {
-      if (filter !== 'favourites') {
-        if (a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
-      }
-      return 0
+      if (filter !== 'favourites' && a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
+      return a.title.localeCompare(b.title)
     })
 
   const groupedRecipes = GROUP_ORDER.reduce((acc, key) => {
@@ -222,6 +224,15 @@ export default function SavedPage() {
 
       {recipes.length > 0 && (
         <div className="mb-4 space-y-2">
+          {/* Search */}
+          <input
+            type="text"
+            placeholder="Search saved recipes..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+
           {/* Favourites / All filter + Auto-tag */}
           <div className="flex gap-2 flex-wrap items-center">
             <button
@@ -291,6 +302,11 @@ export default function SavedPage() {
         <div className="text-center py-12">
           <p className="text-sm text-gray-400 mb-1">No recipes tagged &ldquo;{tagFilter}&rdquo;.</p>
           <button onClick={() => setTagFilter(null)} className="text-xs text-blue-600 hover:underline">Clear filter</button>
+        </div>
+      ) : displayedRecipes.length === 0 && trimmedSearch ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-400 mb-1">No recipes match &ldquo;{searchQuery.trim()}&rdquo;.</p>
+          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 hover:underline">Clear search</button>
         </div>
       ) : displayedRecipes.length === 0 ? (
         <div className="text-center py-12">
