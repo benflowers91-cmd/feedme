@@ -202,7 +202,10 @@ export default function SavedPage() {
     .filter(r => filter === 'favourites' ? r.is_favourite : true)
     .filter(r => tagFilter ? (r.tags ?? []).includes(tagFilter) : true)
     .filter(r => trimmedSearch ? r.title.toLowerCase().includes(trimmedSearch) : true)
-    .sort((a, b) => a.title.localeCompare(b.title))
+    .sort((a, b) => {
+      if (filter !== 'favourites' && a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
+      return a.title.localeCompare(b.title)
+    })
 
   const groupedRecipes = GROUP_ORDER.reduce((acc, key) => {
     acc[key] = []
