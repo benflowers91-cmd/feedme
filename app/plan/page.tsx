@@ -5,42 +5,13 @@ import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
 import type { MealPlanEntry, Recipe, MealType } from '@/lib/types'
+import { MEAL_TYPES, FEED_ME_MEALS, MEAL_EMOJI, LEFTOVER_NOTES_PREFIX, shuffle, getWeekDates } from '@/lib/plan-utils'
 
 const STATUS_STYLES: Record<string, string> = {
   safe: 'text-green-600',
   moderate: 'text-amber-600',
   avoid: 'text-red-500',
   unknown: 'text-gray-400',
-}
-
-const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
-const FEED_ME_MEALS: MealType[] = ['breakfast', 'lunch', 'dinner']
-const MEAL_EMOJI: Record<MealType, string> = {
-  breakfast: '🌅',
-  lunch: '☀️',
-  dinner: '🌙',
-  snack: '🍎',
-}
-
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[copy[i], copy[j]] = [copy[j], copy[i]]
-  }
-  return copy
-}
-
-function getWeekDates(offset = 0) {
-  const today = new Date()
-  const day = today.getDay()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - ((day + 6) % 7) + offset * 7)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return d.toLocaleDateString('en-CA')
-  })
 }
 
 export default function PlanPage() {
@@ -304,6 +275,12 @@ export default function PlanPage() {
       {!loading && (
         <div className="space-y-2 mb-4">
           <button
+            onClick={() => router.push('/plan/build')}
+            className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-2.5 text-sm font-medium hover:bg-purple-100 transition-colors"
+          >
+            🧭 Build my week
+          </button>
+          <button
             onClick={feedMe}
             disabled={feedingMe || recipes.length === 0}
             className="w-full bg-amber-50 border border-amber-200 text-amber-700 rounded-xl py-2.5 text-sm font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors"
@@ -357,6 +334,9 @@ export default function PlanPage() {
                         <span className="text-xs text-gray-400 w-16">{MEAL_EMOJI[meal]} {meal}</span>
                         {entry ? (
                           <div className="flex items-center gap-2 flex-1 justify-end">
+                            {entry.notes?.startsWith(LEFTOVER_NOTES_PREFIX) && (
+                              <span className="text-xs bg-blue-50 text-blue-600 rounded-full px-1.5 py-0.5 shrink-0">Leftover</span>
+                            )}
                             <button
                               onClick={() => {
                                 const r = recipes.find(r => r.id === entry.recipe_id)
