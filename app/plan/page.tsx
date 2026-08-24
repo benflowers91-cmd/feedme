@@ -21,6 +21,7 @@ export default function PlanPage() {
   const [plan, setPlan] = useState<MealPlanEntry[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [picking, setPicking] = useState<{ date: string; meal_type: MealType } | null>(null)
+  const [recipeSearch, setRecipeSearch] = useState('')
   const [viewing, setViewing] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [mutationError, setMutationError] = useState('')
@@ -74,6 +75,7 @@ export default function PlanPage() {
         return [...prev.filter(e => `${e.plan_date}:${e.meal_type}` !== key), newEntry]
       })
       setPicking(null)
+      setRecipeSearch('')
     } catch {
       setMutationError('Failed to add recipe — check your connection')
     }
@@ -426,20 +428,36 @@ export default function PlanPage() {
       )}
 
       {picking && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setPicking(null)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => { setPicking(null); setRecipeSearch('') }}>
           <div className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl max-h-[85vh] overflow-y-auto pb-24" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-semibold text-gray-800">Pick a recipe</p>
-              <p className="text-xs text-gray-400">
-                {picking.date} · {MEAL_EMOJI[picking.meal_type]} {picking.meal_type}
-              </p>
+            <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100 space-y-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Pick a recipe</p>
+                <p className="text-xs text-gray-400">
+                  {picking.date} · {MEAL_EMOJI[picking.meal_type]} {picking.meal_type}
+                </p>
+              </div>
+              <input
+                type="search"
+                placeholder="Search recipes..."
+                value={recipeSearch}
+                onChange={e => setRecipeSearch(e.target.value)}
+                autoFocus
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-300 placeholder-gray-400"
+              />
             </div>
             {recipes.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">No saved recipes yet. Use Find or Adapt to save some first.</p>
             ) : (() => {
-              const filtered = recipes.filter(r => r.tags.length === 0 || r.tags.includes(picking.meal_type))
+              const q = recipeSearch.toLowerCase()
+              const filtered = recipes.filter(r =>
+                (r.tags.length === 0 || r.tags.includes(picking.meal_type)) &&
+                (q === '' || r.title.toLowerCase().includes(q))
+              )
               return filtered.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No recipes tagged for {picking.meal_type}.</p>
+                <p className="text-sm text-gray-400 text-center py-8">
+                  {q !== '' ? `No recipes matching "${recipeSearch}".` : `No recipes tagged for ${picking.meal_type}.`}
+                </p>
               ) : (
                 <ul className="divide-y divide-gray-50 pb-6">
                   {filtered.map(recipe => (
