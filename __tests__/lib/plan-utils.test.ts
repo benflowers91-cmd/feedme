@@ -43,8 +43,22 @@ describe('getWeekDates', () => {
 describe('escapeRegex / matchesHaystack', () => {
   it('matches a plain word boundary case-insensitively', () => {
     expect(matchesHaystack('onion', 'Red Onion Soup')).toBe(true)
-    expect(matchesHaystack('onion', 'Red Onions Soup')).toBe(false)
     expect(matchesHaystack('carrot', 'Red Onion Soup')).toBe(false)
+  })
+
+  it('matches across singular and plural forms in either direction', () => {
+    expect(matchesHaystack('onion', '2 red onions')).toBe(true)
+    expect(matchesHaystack('onions', '1 red onion')).toBe(true)
+    expect(matchesHaystack('tomato', 'tin of chopped tomatoes')).toBe(true)
+    expect(matchesHaystack('tomatoes', '1 tomato')).toBe(true)
+    expect(matchesHaystack('cheese', 'grated cheese')).toBe(true)
+    expect(matchesHaystack('spring onion', '3 spring onions')).toBe(true)
+  })
+
+  it('does not become a substring match', () => {
+    expect(matchesHaystack('rice', 'riced cauliflower')).toBe(false)
+    expect(matchesHaystack('oat', 'goat cheese')).toBe(false)
+    expect(matchesHaystack('pea', 'peanut butter')).toBe(false)
   })
 
   it('treats regex-special characters in the name literally', () => {

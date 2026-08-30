@@ -1,7 +1,6 @@
 import type { MealPlanEntry, MealType, Recipe } from './types'
 
 export const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
-export const FEED_ME_MEALS: MealType[] = ['breakfast', 'lunch', 'dinner']
 export const MEAL_EMOJI: Record<MealType, string> = {
   breakfast: '🌅',
   lunch: '☀️',
@@ -36,8 +35,26 @@ export function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// Pantry names and ingredient names rarely agree on number ("onion" vs "2 onions"),
+// so match either form. Only the final word varies, which is what the suffix rules target.
+export function wordForms(name: string): string[] {
+  const forms = new Set([name])
+  const lower = name.toLowerCase()
+  if (/(?:s|x|z|ch|sh)$/.test(lower)) forms.add(`${name}es`)
+  else if (/[^aeiou]y$/.test(lower)) forms.add(`${name.slice(0, -1)}ies`)
+  else if (/[^aeiou]o$/.test(lower)) {
+    forms.add(`${name}es`) // tomato → tomatoes
+    forms.add(`${name}s`) // avocado → avocados
+  } else forms.add(`${name}s`)
+  if (/[^aeiou]ies$/.test(lower)) forms.add(`${name.slice(0, -3)}y`)
+  else if (/(?:ches|shes|xes|zes|sses|[^aeiou]oes)$/.test(lower)) forms.add(name.slice(0, -2))
+  else if (/[^s]s$/.test(lower)) forms.add(name.slice(0, -1))
+  return [...forms]
+}
+
 export function matchesHaystack(name: string, hay: string): boolean {
-  return new RegExp(`\\b${escapeRegex(name)}\\b`, 'i').test(hay)
+  const alternation = wordForms(name).map(escapeRegex).join('|')
+  return new RegExp(`\\b(?:${alternation})\\b`, 'i').test(hay)
 }
 
 export function shortDayLabel(date: string): string {
@@ -48,28 +65,34 @@ export function eligibleFor(recipes: Recipe[], meal: MealType): Recipe[] {
   return recipes.filter(r => r.tags.length === 0 || r.tags.includes(meal))
 }
 
-export function scoreRecipe(recipe: Recipe, pantryNames: string[], tags: string[]): number {
+export function pantryMatchesFor(recipe: Recipe, pantryNames: string[]): string[] {
   const ingredientNames = (recipe.ingredients ?? []).map(i => i.name)
-  const pantryHits = pantryNames.filter(name =>
+  return pantryNames.filter(name =>
     ingredientNames.some(ing => matchesHaystack(name, ing))
-  ).length
+  )
+}
+
+export function scoreRecipe(recipe: Recipe, pantryNames: string[], tags: string[]): number {
+  const pantryHits = pantryMatchesFor(recipe, pantryNames).length
   const tagHits = tags.filter(t => recipe.tags.includes(t)).length
   return pantryHits * 2 + tagHits
 }
 
+// Picks the best-scoring recipe the week has not used yet. Once the top-scoring
+// recipes are spent it drops to the next tier down rather than repeating one, and
+// returns null when nothing distinct is left — a blank slot beats a duplicate meal.
 function selectForSlot(
   candidates: Recipe[],
   pantryNames: string[],
   tags: string[],
   used: Set<string>
 ): Recipe | null {
-  if (candidates.length === 0) return null
-  const scored = candidates.map(r => ({ r, score: scoreRecipe(r, pantryNames, tags) }))
+  const available = candidates.filter(r => !used.has(r.id))
+  if (available.length === 0) return null
+  const scored = available.map(r => ({ r, score: scoreRecipe(r, pantryNames, tags) }))
   const maxScore = Math.max(...scored.map(s => s.score))
   const topTier = scored.filter(s => s.score === maxScore).map(s => s.r)
-  const unused = topTier.filter(r => !used.has(r.id))
-  const pool = unused.length > 0 ? unused : topTier
-  const pick = shuffle(pool)[0]
+  const pick = shuffle(topTier)[0]
   used.add(pick.id)
   return pick
 }
@@ -79,8 +102,20 @@ export interface ProposedSlot {
   meal_type: MealType
   recipe: Recipe
   isLeftover: boolean
+  pantryMatches: string[]
   notes: string | null
   included: boolean
+}
+
+export interface UnfilledSlot {
+  date: string
+  meal_type: MealType
+}
+
+export interface Proposal {
+  slots: ProposedSlot[]
+  unfilled: UnfilledSlot[]
+  poolSizes: Record<MealType, number>
 }
 
 export interface BuildProposalArgs {
@@ -92,14 +127,34 @@ export interface BuildProposalArgs {
   extraNights: Set<string>
 }
 
-export function buildProposal(args: BuildProposalArgs): ProposedSlot[] {
+export function buildProposal(args: BuildProposalArgs): Proposal {
   const { weekDates, recipes, planMap, selectedPantryNames, selectedTags, extraNights } = args
-  const proposal: ProposedSlot[] = []
-  const usedByMeal: Record<MealType, Set<string>> = {
-    breakfast: new Set(),
-    lunch: new Set(),
-    dinner: new Set(),
-    snack: new Set(),
+  const slots: ProposedSlot[] = []
+  const unfilled: UnfilledSlot[] = []
+
+  // One set for the whole week, not one per meal type: a recipe tagged both lunch
+  // and dinner should still only show up once. Seeded with what is already saved
+  // so re-running the builder never duplicates a meal already in the plan.
+  const used = new Set<string>(
+    Object.values(planMap).map(entry => entry.recipe_id).filter((id): id is string => !!id)
+  )
+
+  function propose(date: string, meal: MealType): Recipe | null {
+    const picked = selectForSlot(eligibleFor(recipes, meal), selectedPantryNames, selectedTags, used)
+    if (!picked) {
+      unfilled.push({ date, meal_type: meal })
+      return null
+    }
+    slots.push({
+      date,
+      meal_type: meal,
+      recipe: picked,
+      isLeftover: false,
+      pantryMatches: pantryMatchesFor(picked, selectedPantryNames),
+      notes: null,
+      included: true,
+    })
+    return picked
   }
 
   // Pass 1: dinners (needed first so leftover lunches can reference them)
@@ -111,13 +166,12 @@ export function buildProposal(args: BuildProposalArgs): ProposedSlot[] {
       if (existingRecipe) dinnerRecipeByDate.set(date, existingRecipe)
       continue
     }
-    const picked = selectForSlot(eligibleFor(recipes, 'dinner'), selectedPantryNames, selectedTags, usedByMeal.dinner)
-    if (!picked) continue
-    dinnerRecipeByDate.set(date, picked)
-    proposal.push({ date, meal_type: 'dinner', recipe: picked, isLeftover: false, notes: null, included: true })
+    const picked = propose(date, 'dinner')
+    if (picked) dinnerRecipeByDate.set(date, picked)
   }
 
-  // Pass 2: leftover chaining — cook-extra dinner becomes next day's lunch, no wraparound past Sunday
+  // Pass 2: leftover chaining — cook-extra dinner becomes next day's lunch, no wraparound past Sunday.
+  // This is the one sanctioned repeat: same recipe, flagged as a leftover.
   const leftoverLunchDates = new Set<string>()
   for (let i = 0; i < weekDates.length - 1; i++) {
     const date = weekDates[i]
@@ -126,11 +180,12 @@ export function buildProposal(args: BuildProposalArgs): ProposedSlot[] {
     if (planMap[`${nextDate}:lunch`]) continue
     const dinnerRecipe = dinnerRecipeByDate.get(date)
     if (!dinnerRecipe) continue
-    proposal.push({
+    slots.push({
       date: nextDate,
       meal_type: 'lunch',
       recipe: dinnerRecipe,
       isLeftover: true,
+      pantryMatches: pantryMatchesFor(dinnerRecipe, selectedPantryNames),
       notes: `${LEFTOVER_NOTES_PREFIX} from ${shortDayLabel(date)} dinner`,
       included: true,
     })
@@ -142,11 +197,16 @@ export function buildProposal(args: BuildProposalArgs): ProposedSlot[] {
     for (const meal of ['breakfast', 'lunch'] as MealType[]) {
       if (planMap[`${date}:${meal}`]) continue
       if (meal === 'lunch' && leftoverLunchDates.has(date)) continue
-      const picked = selectForSlot(eligibleFor(recipes, meal), selectedPantryNames, selectedTags, usedByMeal[meal])
-      if (!picked) continue
-      proposal.push({ date, meal_type: meal, recipe: picked, isLeftover: false, notes: null, included: true })
+      propose(date, meal)
     }
   }
 
-  return proposal
+  const poolSizes = {
+    breakfast: eligibleFor(recipes, 'breakfast').length,
+    lunch: eligibleFor(recipes, 'lunch').length,
+    dinner: eligibleFor(recipes, 'dinner').length,
+    snack: eligibleFor(recipes, 'snack').length,
+  }
+
+  return { slots, unfilled, poolSizes }
 }
