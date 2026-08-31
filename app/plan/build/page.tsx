@@ -13,6 +13,7 @@ import {
   buildProposal,
   eligibleFor,
   pantryMatchesFor,
+  recipeKey,
   shortDayLabel,
   type ProposedSlot,
   type UnfilledSlot,
@@ -23,6 +24,40 @@ type Step = 'pantry' | 'tags' | 'leftovers' | 'preview'
 type PreviewRow =
   | { kind: 'slot'; meal_type: MealType; slot: ProposedSlot; index: number }
   | { kind: 'empty'; meal_type: MealType }
+
+function SelectionControls({
+  selected,
+  total,
+  onSelectAll,
+  onClear,
+}: {
+  selected: number
+  total: number
+  onSelectAll: () => void
+  onClear: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <span className="text-xs text-gray-400">{selected} of {total} selected</span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onSelectAll}
+          disabled={selected === total}
+          className="text-xs text-green-600 hover:text-green-700 font-medium px-2 py-1 rounded-lg hover:bg-green-50 disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          Select all
+        </button>
+        <button
+          onClick={onClear}
+          disabled={selected === 0}
+          className="text-xs text-gray-500 hover:text-gray-700 font-medium px-2 py-1 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function pantryChipLabel(matches: string[]): string {
   const shown = matches.slice(0, 2).join(', ')
@@ -305,6 +340,13 @@ export default function BuildWeekPage() {
         {pantryOptions.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">No safe/moderate pantry items yet — you can still continue.</p>
         ) : (
+          <>
+          <SelectionControls
+            selected={selectedPantryNames.length}
+            total={pantryOptions.length}
+            onSelectAll={() => setSelectedPantryNames(pantryOptions.map(i => i.name))}
+            onClear={() => setSelectedPantryNames([])}
+          />
           <ul className="space-y-2 mb-4">
             {pantryOptions.map(item => (
               <li key={item.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
@@ -319,6 +361,7 @@ export default function BuildWeekPage() {
               </li>
             ))}
           </ul>
+          </>
         )}
         <button
           onClick={() => setStep('tags')}
@@ -340,6 +383,13 @@ export default function BuildWeekPage() {
         {tagOptions.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">No tags on your saved recipes yet — you can still continue.</p>
         ) : (
+          <>
+          <SelectionControls
+            selected={selectedTags.length}
+            total={tagOptions.length}
+            onSelectAll={() => setSelectedTags(tagOptions)}
+            onClear={() => setSelectedTags([])}
+          />
           <div className="flex flex-wrap gap-1.5 mb-4">
             {tagOptions.map(tag => {
               const active = selectedTags.includes(tag)
@@ -356,6 +406,7 @@ export default function BuildWeekPage() {
               )
             })}
           </div>
+          </>
         )}
         <button
           onClick={() => setStep('leftovers')}
@@ -420,8 +471,10 @@ export default function BuildWeekPage() {
   const includedCount = proposal.filter(s => s.included).length
   const leftoverCount = proposal.filter(s => s.included && s.isLeftover).length
   const pantryCount = proposal.filter(s => s.included && s.pantryMatches.length > 0).length
-  const proposedRecipeIds = new Set(proposal.filter(s => !s.isLeftover).map(s => s.recipe.id))
-  const plannedRecipeIds = new Set(plan.map(e => e.recipe_id).filter((id): id is string => !!id))
+  const weekRecipeKeys = new Set([
+    ...proposal.filter(s => !s.isLeftover).map(s => recipeKey(s.recipe.title)),
+    ...plan.map(e => e.recipe_title).filter((t): t is string => !!t).map(recipeKey),
+  ])
 
   if (committed) {
     return (
@@ -511,17 +564,17 @@ export default function BuildWeekPage() {
             </div>
             {(() => {
               const filtered = eligibleFor(recipes, swapping.meal_type)
-              const currentId = proposal.find(
+              const currentTitle = proposal.find(
                 s => s.date === swapping.date && s.meal_type === swapping.meal_type
-              )?.recipe.id
+              )?.recipe.title
               return filtered.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No recipes tagged for {swapping.meal_type}.</p>
               ) : (
                 <ul className="divide-y divide-gray-50 pb-6">
                   {filtered.map(recipe => {
                     const alreadyUsed =
-                      recipe.id !== currentId &&
-                      (proposedRecipeIds.has(recipe.id) || plannedRecipeIds.has(recipe.id))
+                      recipeKey(recipe.title) !== (currentTitle ? recipeKey(currentTitle) : '') &&
+                      weekRecipeKeys.has(recipeKey(recipe.title))
                     return (
                       <li key={recipe.id}>
                         <button

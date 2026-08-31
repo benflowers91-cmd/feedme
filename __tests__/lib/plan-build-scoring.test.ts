@@ -225,16 +225,16 @@ describe('buildProposal', () => {
     expect(unfilled).toHaveLength(0)
   })
 
-  it('leaves a slot unfilled rather than repeating when the pool runs dry', () => {
+  it('leaves a lunch or dinner unfilled rather than repeating when the pool runs dry', () => {
     const weekOfThree = ['2024-01-01', '2024-01-02', '2024-01-03']
     const planMap: Record<string, MealPlanEntry> = {}
     for (const date of weekOfThree) {
+      planMap[`${date}:breakfast`] = makePlanEntry(date, 'breakfast', 'existing')
       planMap[`${date}:lunch`] = makePlanEntry(date, 'lunch', 'existing')
-      planMap[`${date}:dinner`] = makePlanEntry(date, 'dinner', 'existing')
     }
     const { slots, unfilled, poolSizes } = buildProposal({
       weekDates: weekOfThree,
-      recipes: [makeRecipe({ title: 'Only breakfast', tags: ['breakfast'] })],
+      recipes: [makeRecipe({ title: 'Only dinner', tags: ['dinner'] })],
       planMap,
       selectedPantryNames: [],
       selectedTags: [],
@@ -242,17 +242,95 @@ describe('buildProposal', () => {
     })
     expect(slots).toHaveLength(1)
     expect(unfilled).toEqual([
-      { date: '2024-01-02', meal_type: 'breakfast' },
-      { date: '2024-01-03', meal_type: 'breakfast' },
+      { date: '2024-01-02', meal_type: 'dinner' },
+      { date: '2024-01-03', meal_type: 'dinner' },
     ])
-    expect(poolSizes.breakfast).toBe(1)
+    expect(poolSizes.dinner).toBe(1)
+  })
+
+  it('cycles breakfasts instead of leaving them blank, without running back to back', () => {
+    const weekOfSeven = ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-06', '2024-01-07']
+    const planMap: Record<string, MealPlanEntry> = {}
+    for (const date of weekOfSeven) {
+      planMap[`${date}:lunch`] = makePlanEntry(date, 'lunch', 'existing')
+      planMap[`${date}:dinner`] = makePlanEntry(date, 'dinner', 'existing')
+    }
+    const { slots, unfilled } = buildProposal({
+      weekDates: weekOfSeven,
+      recipes: [
+        makeRecipe({ title: 'Porridge', tags: ['breakfast'] }),
+        makeRecipe({ title: 'Eggs on toast', tags: ['breakfast'] }),
+      ],
+      planMap,
+      selectedPantryNames: [],
+      selectedTags: [],
+      extraNights: new Set(),
+    })
+    const breakfasts = slots
+      .filter(s => s.meal_type === 'breakfast')
+      .sort((a, b) => a.date.localeCompare(b.date))
+    expect(breakfasts).toHaveLength(7)
+    expect(unfilled).toHaveLength(0)
+    for (let i = 1; i < breakfasts.length; i++) {
+      expect(breakfasts[i].recipe.title).not.toBe(breakfasts[i - 1].recipe.title)
+    }
+  })
+
+  it('treats two saved rows with the same title as one meal', () => {
+    const weekOfThree = ['2024-01-01', '2024-01-02', '2024-01-03']
+    const planMap: Record<string, MealPlanEntry> = {}
+    for (const date of weekOfThree) {
+      planMap[`${date}:breakfast`] = makePlanEntry(date, 'breakfast', 'existing')
+      planMap[`${date}:lunch`] = makePlanEntry(date, 'lunch', 'existing')
+    }
+    const { slots, unfilled } = buildProposal({
+      weekDates: weekOfThree,
+      // same dish saved twice, plus one genuinely different dinner
+      recipes: [
+        makeRecipe({ title: 'Giant summer rolls', tags: ['dinner'] }),
+        makeRecipe({ title: 'Giant Summer Rolls', tags: ['dinner'] }),
+        makeRecipe({ title: 'Tarragon chicken', tags: ['dinner'] }),
+      ],
+      planMap,
+      selectedPantryNames: [],
+      selectedTags: [],
+      extraNights: new Set(),
+    })
+    const titles = slots.map(s => s.recipe.title.toLowerCase())
+    expect(titles).toHaveLength(2)
+    expect(new Set(titles).size).toBe(2)
+    expect(unfilled).toHaveLength(1)
+  })
+
+  it('does not repeat a meal already saved in the week under a different row', () => {
+    const planMap: Record<string, MealPlanEntry> = {
+      '2024-01-01:dinner': makePlanEntry('2024-01-01', 'dinner', 'some-other-row-id'),
+    }
+    planMap['2024-01-01:dinner'].recipe_title = 'Tarragon chicken'
+    for (const date of weekDates) {
+      planMap[`${date}:breakfast`] = makePlanEntry(date, 'breakfast', 'existing')
+      planMap[`${date}:lunch`] = makePlanEntry(date, 'lunch', 'existing')
+    }
+    const duplicateRow = makeRecipe({ title: 'Tarragon chicken', tags: ['dinner'] })
+    const other = makeRecipe({ title: 'Something else', tags: ['dinner'] })
+    const { slots } = buildProposal({
+      weekDates,
+      recipes: [duplicateRow, other],
+      planMap,
+      selectedPantryNames: [],
+      selectedTags: [],
+      extraNights: new Set(),
+    })
+    expect(slots.find(s => s.date === '2024-01-02' && s.meal_type === 'dinner')?.recipe.id).toBe(other.id)
   })
 
   it('does not propose a recipe already saved elsewhere in the week', () => {
     const alreadyPlanned = makeRecipe({ title: 'Already planned', tags: ['dinner'] })
     const other = makeRecipe({ title: 'Something else', tags: ['dinner'] })
+    const existing = makePlanEntry('2024-01-01', 'dinner', alreadyPlanned.id)
+    existing.recipe_title = alreadyPlanned.title
     const planMap: Record<string, MealPlanEntry> = {
-      '2024-01-01:dinner': makePlanEntry('2024-01-01', 'dinner', alreadyPlanned.id),
+      '2024-01-01:dinner': existing,
     }
     for (const date of weekDates) {
       planMap[`${date}:breakfast`] = makePlanEntry(date, 'breakfast', 'existing')

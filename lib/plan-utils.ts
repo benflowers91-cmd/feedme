@@ -65,6 +65,12 @@ export function eligibleFor(recipes: Recipe[], meal: MealType): Recipe[] {
   return recipes.filter(r => r.tags.length === 0 || r.tags.includes(meal))
 }
 
+// Two saved rows can carry the same dish (the library has a few double-saves), and
+// different ids would let both land in one week. Identity is the title, not the row.
+export function recipeKey(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
 export function pantryMatchesFor(recipe: Recipe, pantryNames: string[]): string[] {
   const ingredientNames = (recipe.ingredients ?? []).map(i => i.name)
   return pantryNames.filter(name =>
@@ -81,19 +87,30 @@ export function scoreRecipe(recipe: Recipe, pantryNames: string[], tags: string[
 // Picks the best-scoring recipe the week has not used yet. Once the top-scoring
 // recipes are spent it drops to the next tier down rather than repeating one, and
 // returns null when nothing distinct is left — a blank slot beats a duplicate meal.
+// allowRepeat is for breakfast only, where cycling a short list beats blank days:
+// it then reuses the least-used dish, avoiding whatever ran the day before.
 function selectForSlot(
   candidates: Recipe[],
   pantryNames: string[],
   tags: string[],
-  used: Set<string>
+  usage: Map<string, number>,
+  options: { allowRepeat?: boolean; avoidKey?: string } = {}
 ): Recipe | null {
-  const available = candidates.filter(r => !used.has(r.id))
-  if (available.length === 0) return null
-  const scored = available.map(r => ({ r, score: scoreRecipe(r, pantryNames, tags) }))
+  if (candidates.length === 0) return null
+  let pool = candidates.filter(r => !usage.has(recipeKey(r.title)))
+  if (pool.length === 0) {
+    if (!options.allowRepeat) return null
+    const leastUsed = Math.min(...candidates.map(r => usage.get(recipeKey(r.title)) ?? 0))
+    pool = candidates.filter(r => (usage.get(recipeKey(r.title)) ?? 0) === leastUsed)
+    const spaced = pool.filter(r => recipeKey(r.title) !== options.avoidKey)
+    if (spaced.length > 0) pool = spaced
+  }
+  const scored = pool.map(r => ({ r, score: scoreRecipe(r, pantryNames, tags) }))
   const maxScore = Math.max(...scored.map(s => s.score))
   const topTier = scored.filter(s => s.score === maxScore).map(s => s.r)
   const pick = shuffle(topTier)[0]
-  used.add(pick.id)
+  const key = recipeKey(pick.title)
+  usage.set(key, (usage.get(key) ?? 0) + 1)
   return pick
 }
 
@@ -132,19 +149,34 @@ export function buildProposal(args: BuildProposalArgs): Proposal {
   const slots: ProposedSlot[] = []
   const unfilled: UnfilledSlot[] = []
 
-  // One set for the whole week, not one per meal type: a recipe tagged both lunch
+  // One tally for the whole week, not one per meal type: a recipe tagged both lunch
   // and dinner should still only show up once. Seeded with what is already saved
   // so re-running the builder never duplicates a meal already in the plan.
-  const used = new Set<string>(
-    Object.values(planMap).map(entry => entry.recipe_id).filter((id): id is string => !!id)
-  )
+  const usage = new Map<string, number>()
+  for (const entry of Object.values(planMap)) {
+    // The stored title is normally enough, but resolve the row too in case a recipe
+    // was renamed after it was planned.
+    const linked = entry.recipe_id ? recipes.find(r => r.id === entry.recipe_id) : undefined
+    const keys = new Set(
+      [entry.recipe_title, linked?.title].filter((t): t is string => !!t).map(recipeKey)
+    )
+    for (const key of keys) usage.set(key, (usage.get(key) ?? 0) + 1)
+  }
+
+  // Breakfast is the one meal allowed to cycle — the library rarely holds seven of
+  // them, and a repeated breakfast is normal where a repeated dinner is not.
+  let lastBreakfastKey: string | undefined
 
   function propose(date: string, meal: MealType): Recipe | null {
-    const picked = selectForSlot(eligibleFor(recipes, meal), selectedPantryNames, selectedTags, used)
+    const picked = selectForSlot(eligibleFor(recipes, meal), selectedPantryNames, selectedTags, usage, {
+      allowRepeat: meal === 'breakfast',
+      avoidKey: meal === 'breakfast' ? lastBreakfastKey : undefined,
+    })
     if (!picked) {
       unfilled.push({ date, meal_type: meal })
       return null
     }
+    if (meal === 'breakfast') lastBreakfastKey = recipeKey(picked.title)
     slots.push({
       date,
       meal_type: meal,
