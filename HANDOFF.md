@@ -146,10 +146,11 @@ alter table recipes add column if not exists is_favourite boolean not null defau
 Both Claude routes (`/api/adapt`, `/api/suggest`) use `tool_use` with a typed schema to force structured output — no text parsing or JSON cleanup. The FODMAP system prompt is cached via `cache_control: ephemeral`.
 
 **`/api/adapt`**
-- Model: `claude-sonnet-4-6`
+- Model: `claude-haiku-4-5-20251001`
 - Returns per-ingredient analysis: `fodmap_status` + `substitution_options[]`
 - User picks substitutions on the adapt page before saving
-- Recipe text capped at 8,000 characters
+- Recipe text capped at 8,000 characters; `max_tokens` is 8000
+- Guards against a truncated tool call: returns 502 on `stop_reason: 'max_tokens'`, and 502 if the tool input is missing `title`, `ingredients`, or `fodmap_notes`. A forced tool call that hits the output cap still returns a `tool_use` block, just with a partial input object, so neither check is optional.
 
 **`/api/suggest`** *(orphaned — not wired to any page currently; see "Find page" below)*
 - Model: `claude-sonnet-4-6`

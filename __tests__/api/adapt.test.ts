@@ -19,6 +19,7 @@ import { POST } from '@/app/api/adapt/route'
 const FAKE_SESSION = { user: { email: 'test@example.com', name: 'Test' } }
 
 const MOCK_TOOL_RESPONSE = {
+  stop_reason: 'tool_use',
   content: [
     {
       type: 'tool_use',
@@ -102,5 +103,67 @@ describe('POST /api/adapt', () => {
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.error).toMatch(/Unexpected/)
+  })
+
+  it('returns 502 when generation is cut off by max_tokens', async () => {
+    mockGetServerSession.mockResolvedValue(FAKE_SESSION)
+    // A forced tool call that hits the cap still returns a tool_use block —
+    // with a partial input object.
+    mockCreate.mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_truncated',
+          name: 'analyse_recipe',
+          input: { title: 'Half An Analysis' },
+        },
+      ],
+    })
+
+    const res = await POST(makeRequest({ recipe_text: 'A very long recipe' }))
+    expect(res.status).toBe(502)
+    const body = await res.json()
+    expect(body.error).toMatch(/too long/)
+  })
+
+  it('returns 502 when the tool input is missing ingredients', async () => {
+    mockGetServerSession.mockResolvedValue(FAKE_SESSION)
+    mockCreate.mockResolvedValue({
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_partial',
+          name: 'analyse_recipe',
+          input: { title: 'No Ingredients', fodmap_notes: 'Nothing to see' },
+        },
+      ],
+    })
+
+    const res = await POST(makeRequest({ recipe_text: 'Some recipe' }))
+    expect(res.status).toBe(502)
+    const body = await res.json()
+    expect(body.error).toMatch(/Incomplete/)
+  })
+
+  it('returns 502 when the tool input has an empty ingredients array', async () => {
+    mockGetServerSession.mockResolvedValue(FAKE_SESSION)
+    mockCreate.mockResolvedValue({
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_empty',
+          name: 'analyse_recipe',
+          input: { title: 'Empty', ingredients: [], fodmap_notes: 'Nothing' },
+        },
+      ],
+    })
+
+    const res = await POST(makeRequest({ recipe_text: 'Some recipe' }))
+    expect(res.status).toBe(502)
+    const body = await res.json()
+    expect(body.error).toMatch(/Incomplete/)
   })
 })

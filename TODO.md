@@ -48,6 +48,12 @@
 
 ## Known bugs
 
+- [x] **Adapt page: "Failed to analyse (server error 200)" when analysing a recipe**
+  The status code was a red herring. `analyseRecipe()` wrapped both the `res.json()` parse *and* the result-processing code in one try/catch, and the catch assumed any throw meant a non-JSON response. When the API returned a 200 whose payload was missing `ingredients`, `data.ingredients.forEach(...)` threw a TypeError, landed in that catch, and got reported as a server error with the successful status attached.
+  - **Root cause on the server side:** `/api/adapt` returned `toolBlock.input` unvalidated and never checked `stop_reason`. With `max_tokens: 2000` and a forced tool call, a long recipe hit the output cap mid-JSON and came back as a partial input object. Nothing was logged, so Vercel showed no error.
+  - **Fixes:** route now returns 502 with a specific message on `stop_reason: 'max_tokens'`, validates that the tool input actually has `title`, a non-empty `ingredients` array, and `fodmap_notes` before returning it, and raises `max_tokens` to 8000. Client splits the parse from the processing so the two failure modes report differently, and checks the ingredient list before using it.
+  - **Files:** `app/api/adapt/route.ts`, `app/adapt/page.tsx`, `__tests__/api/adapt.test.ts`
+
 - [x] **Adapt page: raw recipe text stored as "Method" on Saved page**
   Relabeled to "Original recipe" on the Saved page to match the Adapt result screen.
   - **File:** `app/saved/page.tsx`

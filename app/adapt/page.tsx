@@ -106,29 +106,49 @@ function AdaptPageInner({ initialUrl }: { initialUrl: string }) {
       return
     }
 
+    let data: Partial<AnalysedRecipe> & { error?: string }
     try {
-      const data = await res.json()
-      if (data.error) {
-        setAnalyseError(data.error)
-      } else {
-        setResult({ ...data, instructions: recipeText })
-        const defaults: Record<number, number | 'keep'> = {}
-        data.ingredients.forEach((ing: AnalysedIngredient, i: number) => {
-          if (ing.substitution_options?.length > 0 && (ing.fodmap_status === 'avoid' || ing.fodmap_status === 'moderate')) {
-            defaults[i] = 0
-          } else {
-            defaults[i] = 'keep'
-          }
-        })
-        setSelections(defaults)
-        setStep('analyse')
-      }
+      data = await res.json()
     } catch {
       // Non-JSON response (e.g. a platform-level timeout/crash page) — not a client connectivity issue.
       setAnalyseError(`Failed to analyse (server error ${res.status}) — please try again`)
-    } finally {
       setAnalysing(false)
+      return
     }
+
+    if (data.error) {
+      setAnalyseError(data.error)
+      setAnalysing(false)
+      return
+    }
+
+    // A 200 can still carry an unusable payload. Say so plainly instead of
+    // letting the render throw on a missing ingredient list.
+    if (!Array.isArray(data.ingredients) || data.ingredients.length === 0) {
+      setAnalyseError('The analysis came back incomplete — please try again')
+      setAnalysing(false)
+      return
+    }
+
+    const ingredients = data.ingredients
+    const defaults: Record<number, number | 'keep'> = {}
+    ingredients.forEach((ing, i) => {
+      if (ing.substitution_options?.length > 0 && (ing.fodmap_status === 'avoid' || ing.fodmap_status === 'moderate')) {
+        defaults[i] = 0
+      } else {
+        defaults[i] = 'keep'
+      }
+    })
+
+    setResult({
+      title: data.title ?? 'Untitled recipe',
+      ingredients,
+      fodmap_notes: data.fodmap_notes ?? '',
+      instructions: recipeText,
+    })
+    setSelections(defaults)
+    setStep('analyse')
+    setAnalysing(false)
   }
 
   function resetState() {
