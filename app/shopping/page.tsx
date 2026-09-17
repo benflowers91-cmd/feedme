@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
+import { tescoSearchUrl, splitNameAndQuantity } from '@/lib/shopping-item-name'
 import type { ShoppingItem, MealPlanEntry, Recipe } from '@/lib/types'
 
 export default function ShoppingPage() {
@@ -63,8 +64,36 @@ export default function ShoppingPage() {
       }
       const updated = await res.json()
       setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
+      await syncPantry(updated)
     } catch {
       setMutationError('Failed to update item — check your connection')
+    }
+  }
+
+  // Ticking an item off means you bought it, so it lands in the pantry.
+  // Un-ticking undoes that. Dismissing with the X does neither — see deleteItem.
+  // A pantry failure never reverts the tick; shopping keeps working regardless.
+  async function syncPantry(item: ShoppingItem) {
+    try {
+      if (item.is_checked) {
+        const parsed = splitNameAndQuantity(item.name)
+        const res = await fetch('/api/pantry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: parsed.name,
+            quantity: item.quantity ?? parsed.quantity,
+            fodmap_status: 'unknown',
+            source_shopping_item_id: item.id,
+          }),
+        })
+        if (!res.ok) setMutationError('Checked off, but couldn’t add it to your pantry')
+      } else {
+        const res = await fetch(`/api/pantry?source_shopping_item_id=${item.id}`, { method: 'DELETE' })
+        if (!res.ok) setMutationError('Un-checked, but couldn’t remove it from your pantry')
+      }
+    } catch {
+      setMutationError('Updated the list, but couldn’t reach your pantry')
     }
   }
 
@@ -197,27 +226,6 @@ export default function ShoppingPage() {
       setCopyState('copied')
       setTimeout(() => setCopyState('idle'), 2000)
     }
-  }
-
-  function tescoSearchUrl(itemName: string): string {
-    // Consolidation stores amounts after the first comma — strip everything from comma onwards
-    let s = itemName.split(',')[0].trim()
-    let prev = ''
-    while (prev !== s) {
-      prev = s
-      s = s
-        .replace(/^\d+\/\d+\s*/i, '')
-        .replace(/^\d+(\.\d+)?\s*/i, '')
-        .replace(/^(tablespoons?|teaspoons?|kilograms?|grams?|millilitres?|milliliters?|centilitres?|centiliters?|litres?|liters?|ounces?|pounds?|cups?|cloves?|cans?|tins?|bunches?|heads?|sticks?|sprigs?|rashers?|slices?|pieces?|handfuls?|pinch(?:es)?|sachets?|portions?|tbsps?|tsps?)\s*/i, '')
-        // Short units require whitespace or end-of-string after them to avoid eating ingredient names (e.g. "garlic", "lemons")
-        .replace(/^(kg|ml|cl|oz|lbs?|g|l)(?=\s|$)\s*/i, '')
-        .replace(/^(x|×)(?=\s|$)\s*/i, '')
-        .replace(/^of(?=\s|$)\s*/i, '')
-        .replace(/^an?(?=\s|$)\s*/i, '')
-        .replace(/^\(.*?\)\s*/i, '')
-        .trim()
-    }
-    return `https://www.tesco.com/groceries/en-GB/search?query=${encodeURIComponent(s)}`
   }
 
   async function consolidateList() {

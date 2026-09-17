@@ -6,8 +6,16 @@ create table pantry_items (
   name text not null,
   fodmap_status text not null default 'unknown',
   quantity text,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  added_at timestamptz not null default now(),
+  last_confirmed_at timestamptz not null default now(),
+  -- provenance only: deliberately not a foreign key, so the pantry row
+  -- survives its shopping item being cleared off the list
+  source_shopping_item_id uuid
 );
+
+create index pantry_items_user_confirmed_idx
+  on pantry_items (user_id, last_confirmed_at);
 
 create table recipes (
   id uuid primary key default gen_random_uuid(),
@@ -30,6 +38,7 @@ create table meal_plan (
   recipe_id uuid references recipes(id) on delete set null,
   recipe_title text,
   notes text,
+  calendar_event_id text,
   unique (user_id, plan_date, meal_type)
 );
 

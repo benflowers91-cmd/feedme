@@ -8,6 +8,9 @@ export interface PantryItem {
   fodmap_status: FodmapStatus
   quantity: string | null
   updated_at: string
+  added_at: string
+  last_confirmed_at: string
+  source_shopping_item_id: string | null
 }
 
 export interface SubstitutionOption {

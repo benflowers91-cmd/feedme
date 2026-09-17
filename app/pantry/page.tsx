@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useEffect, useRef, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
+import { isStale, formatAge, STALE_AFTER_DAYS } from '@/lib/pantry-age'
 import type { PantryItem, FodmapStatus } from '@/lib/types'
 
 const STATUS_STYLES: Record<FodmapStatus, string> = {
@@ -13,6 +14,9 @@ const STATUS_STYLES: Record<FodmapStatus, string> = {
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+
+/** Review a handful at a time — a long-neglected pantry shouldn't open as a wall of items. */
+const REVIEW_BATCH_SIZE = 10
 
 interface SuggestedItem {
   name: string
@@ -38,6 +42,11 @@ export default function PantryPage() {
   const [suggested, setSuggested] = useState<SuggestedItem[]>([])
   const [addingBulk, setAddingBulk] = useState(false)
   const [newlyAddedIds, setNewlyAddedIds] = useState<Set<string>>(new Set())
+
+  // Review state ("do you still have this?")
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewDismissed, setReviewDismissed] = useState(false)
+  const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set())
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -89,6 +98,35 @@ export default function PantryPage() {
       setNewlyAddedIds(prev => { const next = new Set(prev); next.delete(id); return next })
     } catch {
       setMutationError('Failed to remove item — check your connection')
+    }
+  }
+
+  /** "I still have this" — pushes the next ask out by another two weeks. */
+  async function confirmItems(ids: string[]) {
+    if (ids.length === 0) return
+    setMutationError('')
+    setConfirmingIds(prev => new Set([...prev, ...ids]))
+    try {
+      const res = await fetch('/api/pantry/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      })
+      if (!res.ok) {
+        setMutationError('Failed to update — try again')
+        return
+      }
+      const updated: PantryItem[] = await res.json()
+      const byId = new Map(updated.map(i => [i.id, i]))
+      setItems(prev => prev.map(i => byId.get(i.id) ?? i))
+    } catch {
+      setMutationError('Failed to update — check your connection')
+    } finally {
+      setConfirmingIds(prev => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
     }
   }
 
@@ -209,10 +247,99 @@ export default function PantryPage() {
   if (!session) return <SignInPrompt />
 
   const selectedCount = suggested.filter(i => i.selected).length
+  const staleItems = items.filter(item => isStale(item))
+  const reviewBatch = staleItems.slice(0, REVIEW_BATCH_SIZE)
+  const remainingAfterBatch = staleItems.length - reviewBatch.length
+  const showReview = staleItems.length > 0 && !reviewDismissed
 
   return (
     <div>
       <h1 className="text-xl font-semibold text-gray-800 mb-4">Pantry</h1>
+
+      {/* "Do you still have this?" — items unconfirmed for over two weeks */}
+      {showReview && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-amber-800">
+              <span className="mr-1">🕗</span>
+              {staleItems.length === 1
+                ? '1 item is'
+                : `${staleItems.length} items are`}{' '}
+              over {STALE_AFTER_DAYS / 7} weeks old — still {staleItems.length === 1 ? 'got it' : 'got them'}?
+            </p>
+            {!reviewOpen && (
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setReviewOpen(true)}
+                  className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                >
+                  Review
+                </button>
+                <button
+                  onClick={() => setReviewDismissed(true)}
+                  className="text-amber-300 hover:text-amber-500"
+                  aria-label="Dismiss"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {reviewOpen && (
+            <>
+              <ul className="space-y-2 mt-3">
+                {reviewBatch.map(item => {
+                  const busy = confirmingIds.has(item.id)
+                  return (
+                    <li key={item.id} className="flex items-center gap-3 bg-white rounded-lg border border-amber-100 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-gray-800">{item.name}</span>
+                        <span className="text-xs text-amber-600 ml-1.5">{formatAge(item.added_at)} old</span>
+                      </div>
+                      <button
+                        onClick={() => confirmItems([item.id])}
+                        disabled={busy}
+                        className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 hover:bg-green-100 disabled:opacity-50 shrink-0"
+                      >
+                        Still have it
+                      </button>
+                      <button
+                        onClick={() => deleteItem(item.id)}
+                        disabled={busy}
+                        className="text-xs font-medium text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-50 shrink-0"
+                      >
+                        All gone
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+              {remainingAfterBatch > 0 && (
+                <p className="text-xs text-amber-600 mt-2 px-1">
+                  …and {remainingAfterBatch} more after these.
+                </p>
+              )}
+              <div className="flex items-center gap-4 mt-3">
+                <button
+                  onClick={() => confirmItems(staleItems.map(i => i.id))}
+                  className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                >
+                  Still have all {staleItems.length}
+                </button>
+                <button
+                  onClick={() => setReviewOpen(false)}
+                  className="text-xs font-medium text-amber-400 hover:text-amber-600"
+                >
+                  Later
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Add ingredient form */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-6">
@@ -404,6 +531,7 @@ export default function PantryPage() {
         <ul className="space-y-2">
           {items.map(item => {
             const isNew = newlyAddedIds.has(item.id)
+            const stale = isStale(item)
             return (
               <li
                 key={item.id}
@@ -413,6 +541,11 @@ export default function PantryPage() {
                   <span className="text-sm font-medium text-gray-800">{item.name}</span>
                   {item.quantity && <span className="text-xs text-gray-400 ml-1.5">{item.quantity}</span>}
                   {isNew && <span className="text-xs bg-green-100 text-green-600 rounded px-1.5 py-0.5 ml-2 font-medium">New</span>}
+                  {!isNew && (
+                    <span className={`text-xs ml-1.5 ${stale ? 'text-amber-600' : 'text-gray-300'}`}>
+                      {formatAge(item.added_at)}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[item.fodmap_status as FodmapStatus]}`}>
