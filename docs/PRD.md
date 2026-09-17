@@ -1,7 +1,7 @@
 # FeedMe — Product Requirements Document
 
 **Status:** Living document. Update as decisions are made.
-**Last updated:** 2026-06-20
+**Last updated:** 2026-07-12
 
 ---
 
@@ -44,9 +44,11 @@ These rules are currently hardcoded in `lib/fodmap-prompt.ts`. Planned: user-con
 Track what you have at home. Each ingredient tagged with FODMAP status (safe / moderate / avoid). Used by the AI to generate relevant suggestions.
 
 ### Find
-Two modes:
-- **AI suggestions** — Claude generates 3 complete FODMAP-safe recipes based on your pantry items. Good for "what can I make tonight?"
-- **Web search** — Tavily finds real recipes from the web. Good for "I want to make pasta carbonara, show me versions I can adapt." Results link directly into the Adapt flow.
+Web search only — Claude helps you find recipes, it never writes them (Claude-authored recipes were tried and dropped; quality wasn't good enough to trust).
+- **Manual search** — type a recipe name/idea, Tavily finds real recipes from the web. Good for "I want to make pasta carbonara, show me versions I can adapt."
+- **Pantry idea chips** — Claude looks at your full pantry and suggests 8 varied search phrases (different cuisines/meal types) as tappable chips, so you don't have to already know which ingredients combine. Tapping a chip runs the same Tavily search as manual search. A "More ideas" action regenerates a fresh batch.
+
+Results link directly into the Adapt flow via "Fetch & Adapt."
 
 ### Adapt
 Take any recipe (URL or pasted text) and make it FODMAP-safe. Claude analyses each ingredient, flags issues, and suggests substitutions. You pick which subs to apply before saving. Ingredient-by-ingredient control — you're never overruled.
@@ -58,7 +60,7 @@ Your recipe library. Recipes tagged automatically by meal type, cuisine, and eff
 Weekly meal planner. Assign saved recipes to breakfast / lunch / dinner slots. Navigate week by week.
 
 ### Shopping
-Shopping list that generates from your meal plan. Cross-references your pantry to flag items you may already have. Manual add also supported. Check off as you shop.
+Shopping list that generates from your meal plan. Manual add also supported. Check off as you shop. "Consolidate list" merges near-duplicates and cross-references your pantry: confident pantry matches are left off the list entirely (shown in a dismissible "already have this" summary), uncertain matches just get a flag so you decide.
 
 ### Home
 Today's meals at a glance. Quick action tiles.
@@ -94,6 +96,11 @@ Today's meals at a glance. Quick action tiles.
 ---
 
 ## Roadmap (roughly prioritised)
+
+### Top priority
+- **Push weekly plan to Google Calendar** — after planning the week, one action creates calendar events for breakfast (9:00), lunch (12:30), and dinner (18:00) each day, titled with that slot's recipe. Scoped as a one-off push (re-running it re-creates/overwrites that week's events), not live two-way sync — two-way sync is a later, separate roadmap item once the one-off push is validated in daily use.
+  - **Why it's top priority (ICE):** Impact 9 (directly targets the stated problem — forgetting/deviating from the plan) × Confidence 8 (Calendar API is well-understood; existing Google OAuth login can be extended with the Calendar scope) × Ease 7 (one manual action, no sync-state tracking needed) — highest score on the current backlog.
+  - **Not in scope yet:** editing/deleting synced events when the plan changes after the push, and Google Tasks (rejected — Tasks lack reliable time-based notifications, which is the actual point of this feature).
 
 ### Small wins
 - **"Adapt another recipe" button** — reset state after saving, avoid navigating away and back

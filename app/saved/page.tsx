@@ -14,6 +14,16 @@ const STATUS_STYLES: Record<string, string> = {
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
 
+type GroupKey = MealType | 'needs_meal_type'
+const GROUP_ORDER: GroupKey[] = ['breakfast', 'lunch', 'dinner', 'snack', 'needs_meal_type']
+const GROUP_LABELS: Record<GroupKey, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snack',
+  needs_meal_type: 'Needs meal type',
+}
+
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
     <svg viewBox="0 0 24 24" className="w-4 h-4" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
@@ -34,6 +44,8 @@ export default function SavedPage() {
   const [addingToPlan, setAddingToPlan] = useState(false)
   const [planAdded, setPlanAdded] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'favourites'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [newTagInputs, setNewTagInputs] = useState<Record<string, string>>({})
   const [savingTags, setSavingTags] = useState<string | null>(null)
@@ -98,6 +110,11 @@ export default function SavedPage() {
     if (tagFilter === tag) setTagFilter(null)
   }
 
+  function setMealType(recipe: Recipe, mealType: MealType) {
+    const rest = (recipe.tags ?? []).filter(t => !MEAL_TYPES.includes(t as MealType))
+    updateTags(recipe, [mealType, ...rest])
+  }
+
   async function autoTagAll() {
     setAutoTagging(true)
     setAutoTagResult(null)
@@ -158,6 +175,15 @@ export default function SavedPage() {
     }
   }
 
+  function toggleGroup(key: GroupKey) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   function openPlanModal(recipe: Recipe) {
     const now = new Date()
     const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
@@ -170,15 +196,27 @@ export default function SavedPage() {
   const allTags = [...new Set(recipes.flatMap(r => r.tags ?? []))].sort()
   const favouriteCount = recipes.filter(r => r.is_favourite).length
 
+  const trimmedSearch = searchQuery.trim().toLowerCase()
+
   const displayedRecipes = recipes
     .filter(r => filter === 'favourites' ? r.is_favourite : true)
     .filter(r => tagFilter ? (r.tags ?? []).includes(tagFilter) : true)
+    .filter(r => trimmedSearch ? r.title.toLowerCase().includes(trimmedSearch) : true)
     .sort((a, b) => {
-      if (filter !== 'favourites') {
-        if (a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
-      }
-      return 0
+      if (filter !== 'favourites' && a.is_favourite !== b.is_favourite) return a.is_favourite ? -1 : 1
+      return a.title.localeCompare(b.title)
     })
+
+  const groupedRecipes = GROUP_ORDER.reduce((acc, key) => {
+    acc[key] = []
+    return acc
+  }, {} as Record<GroupKey, Recipe[]>)
+
+  displayedRecipes.forEach(recipe => {
+    const tags = recipe.tags ?? []
+    const match = MEAL_TYPES.find(mealType => tags.includes(mealType))
+    groupedRecipes[match ?? 'needs_meal_type'].push(recipe)
+  })
 
   return (
     <div>
@@ -186,6 +224,15 @@ export default function SavedPage() {
 
       {recipes.length > 0 && (
         <div className="mb-4 space-y-2">
+          {/* Search */}
+          <input
+            type="text"
+            placeholder="Search saved recipes..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+
           {/* Favourites / All filter + Auto-tag */}
           <div className="flex gap-2 flex-wrap items-center">
             <button
@@ -256,17 +303,46 @@ export default function SavedPage() {
           <p className="text-sm text-gray-400 mb-1">No recipes tagged &ldquo;{tagFilter}&rdquo;.</p>
           <button onClick={() => setTagFilter(null)} className="text-xs text-blue-600 hover:underline">Clear filter</button>
         </div>
+      ) : displayedRecipes.length === 0 && trimmedSearch ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-400 mb-1">No recipes match &ldquo;{searchQuery.trim()}&rdquo;.</p>
+          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 hover:underline">Clear search</button>
+        </div>
       ) : displayedRecipes.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-sm text-gray-400 mb-2">No saved recipes yet.</p>
           <p className="text-xs text-gray-400">Adapt a recipe to get started.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {displayedRecipes.map(recipe => {
-            const isExpanded = expandedId === recipe.id
-            const tags = recipe.tags ?? []
+        <div className="space-y-4">
+          {GROUP_ORDER.filter(key => groupedRecipes[key].length > 0).map(key => {
+            const groupRecipes = groupedRecipes[key]
+            const isCollapsed = collapsedGroups.has(key)
             return (
+              <div key={key}>
+                <button
+                  className="w-full flex items-center justify-between px-1 py-2 text-left"
+                  onClick={() => toggleGroup(key)}
+                >
+                  <span className="text-sm font-semibold text-gray-700">
+                    {GROUP_LABELS[key]} <span className="text-gray-400 font-normal">({groupRecipes.length})</span>
+                  </span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-3">
+                    {groupRecipes.map(recipe => {
+                      const isExpanded = expandedId === recipe.id
+                      const tags = recipe.tags ?? []
+                      return (
               <div key={recipe.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <button
                   className="w-full px-4 py-3 flex items-start justify-between text-left gap-3"
@@ -305,6 +381,21 @@ export default function SavedPage() {
                         </span>
                       ))}
                     </div>
+                    {key === 'needs_meal_type' && (
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-xs text-amber-600">Set meal type:</span>
+                        {MEAL_TYPES.map(mealType => (
+                          <button
+                            key={mealType}
+                            onClick={e => { e.stopPropagation(); setMealType(recipe, mealType) }}
+                            disabled={savingTags === recipe.id}
+                            className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 capitalize disabled:opacity-50"
+                          >
+                            {mealType}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0 mt-0.5">
                     <button
@@ -418,6 +509,11 @@ export default function SavedPage() {
                         {deleting === recipe.id ? '...' : 'Delete'}
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

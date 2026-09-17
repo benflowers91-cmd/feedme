@@ -1,5 +1,7 @@
 # Recipe Search — Tavily Integration
 
+> **Historical spec.** Reflects the state of the Find page as originally built. The "AI suggestions" section described below (Claude writing 3 full recipes) has since been dropped — Claude-authored recipes weren't good enough to trust, and the page is now web-search-only, with Claude limited to suggesting *search phrases* from the pantry (see `HANDOFF.md` → "Find page" and `docs/PRD.md` → "Find" for the current design).
+
 ## Context
 
 The original Find page used Google Custom Search API, which was returning 400 errors and had no reliable fallback. The Find page was rebuilt to use Claude-from-pantry for AI suggestions. This document covers the addition of **real web recipe search** alongside those suggestions, powered by Tavily.

@@ -3,6 +3,8 @@ import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { FODMAP_SYSTEM_PROMPT } from '@/lib/fodmap-prompt'
 
+export const maxDuration = 60
+
 const anthropic = new Anthropic()
 
 const ANALYSE_TOOL: Anthropic.Tool = {

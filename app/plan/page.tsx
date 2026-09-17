@@ -5,32 +5,13 @@ import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
 import type { MealPlanEntry, Recipe, MealType } from '@/lib/types'
+import { MEAL_TYPES, MEAL_EMOJI, LEFTOVER_NOTES_PREFIX, getWeekDates } from '@/lib/plan-utils'
 
 const STATUS_STYLES: Record<string, string> = {
   safe: 'text-green-600',
   moderate: 'text-amber-600',
   avoid: 'text-red-500',
   unknown: 'text-gray-400',
-}
-
-const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack']
-const MEAL_EMOJI: Record<MealType, string> = {
-  breakfast: '🌅',
-  lunch: '☀️',
-  dinner: '🌙',
-  snack: '🍎',
-}
-
-function getWeekDates(offset = 0) {
-  const today = new Date()
-  const day = today.getDay()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - ((day + 6) % 7) + offset * 7)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return d.toLocaleDateString('en-CA')
-  })
 }
 
 export default function PlanPage() {
@@ -40,10 +21,13 @@ export default function PlanPage() {
   const [plan, setPlan] = useState<MealPlanEntry[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [picking, setPicking] = useState<{ date: string; meal_type: MealType } | null>(null)
+  const [recipeSearch, setRecipeSearch] = useState('')
   const [viewing, setViewing] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [mutationError, setMutationError] = useState('')
   const [creatingShoppingList, setCreatingShoppingList] = useState(false)
+  const [pushingCalendar, setPushingCalendar] = useState(false)
+  const [calendarMessage, setCalendarMessage] = useState('')
 
   const weekDates = getWeekDates(weekOffset)
   const from = weekDates[0]
@@ -89,6 +73,7 @@ export default function PlanPage() {
         return [...prev.filter(e => `${e.plan_date}:${e.meal_type}` !== key), newEntry]
       })
       setPicking(null)
+      setRecipeSearch('')
     } catch {
       setMutationError('Failed to add recipe — check your connection')
     }
@@ -145,6 +130,34 @@ export default function PlanPage() {
     }
   }
 
+  async function pushToCalendar() {
+    setPushingCalendar(true)
+    setMutationError('')
+    setCalendarMessage('')
+    try {
+      const res = await fetch('/api/plan/push-calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        setMutationError(body.error ?? 'Failed to push to calendar — try again')
+        return
+      }
+      const failed = body.errors?.length ?? 0
+      setCalendarMessage(
+        failed > 0
+          ? `Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'}, ${failed} failed`
+          : `Pushed ${body.pushed} meal${body.pushed === 1 ? '' : 's'} to your calendar`
+      )
+    } catch {
+      setMutationError('Failed to push to calendar — check your connection')
+    } finally {
+      setPushingCalendar(false)
+    }
+  }
+
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
@@ -185,13 +198,31 @@ export default function PlanPage() {
       )}
 
       {!loading && (
-        <button
-          onClick={createShoppingList}
-          disabled={creatingShoppingList}
-          className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors mb-4"
-        >
-          {creatingShoppingList ? 'Creating...' : '🛒 Create shopping list from this plan'}
-        </button>
+        <div className="space-y-2 mb-4">
+          <button
+            onClick={() => router.push('/plan/build')}
+            className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-2.5 text-sm font-medium hover:bg-purple-100 transition-colors"
+          >
+            🧭 Build my week
+          </button>
+          <button
+            onClick={createShoppingList}
+            disabled={creatingShoppingList}
+            className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl py-2.5 text-sm font-medium hover:bg-green-100 disabled:opacity-50 transition-colors"
+          >
+            {creatingShoppingList ? 'Creating...' : '🛒 Create shopping list from this plan'}
+          </button>
+          <button
+            onClick={pushToCalendar}
+            disabled={pushingCalendar}
+            className="w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl py-2.5 text-sm font-medium hover:bg-blue-100 disabled:opacity-50 transition-colors"
+          >
+            {pushingCalendar ? 'Pushing...' : '📅 Push to Google Calendar'}
+          </button>
+          {calendarMessage && (
+            <p className="text-xs text-gray-500 text-center">{calendarMessage}</p>
+          )}
+        </div>
       )}
 
       {loading ? (
@@ -218,6 +249,9 @@ export default function PlanPage() {
                         <span className="text-xs text-gray-400 w-16">{MEAL_EMOJI[meal]} {meal}</span>
                         {entry ? (
                           <div className="flex items-center gap-2 flex-1 justify-end">
+                            {entry.notes?.startsWith(LEFTOVER_NOTES_PREFIX) && (
+                              <span className="text-xs bg-blue-50 text-blue-600 rounded-full px-1.5 py-0.5 shrink-0">Leftover</span>
+                            )}
                             <button
                               onClick={() => {
                                 const r = recipes.find(r => r.id === entry.recipe_id)
@@ -307,33 +341,54 @@ export default function PlanPage() {
       )}
 
       {picking && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => setPicking(null)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end" onClick={() => { setPicking(null); setRecipeSearch('') }}>
           <div className="bg-white w-full max-w-2xl mx-auto rounded-t-2xl max-h-[85vh] overflow-y-auto pb-24" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-semibold text-gray-800">Pick a recipe</p>
-              <p className="text-xs text-gray-400">
-                {picking.date} · {MEAL_EMOJI[picking.meal_type]} {picking.meal_type}
-              </p>
+            <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100 space-y-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Pick a recipe</p>
+                <p className="text-xs text-gray-400">
+                  {picking.date} · {MEAL_EMOJI[picking.meal_type]} {picking.meal_type}
+                </p>
+              </div>
+              <input
+                type="search"
+                placeholder="Search recipes..."
+                value={recipeSearch}
+                onChange={e => setRecipeSearch(e.target.value)}
+                autoFocus
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-300 placeholder-gray-400"
+              />
             </div>
             {recipes.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">No saved recipes yet. Use Find or Adapt to save some first.</p>
-            ) : (
-              <ul className="divide-y divide-gray-50 pb-6">
-                {recipes.map(recipe => (
-                  <li key={recipe.id}>
-                    <button
-                      onClick={() => assignRecipe(recipe)}
-                      className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors"
-                    >
-                      <p className="text-sm font-medium text-gray-800">{recipe.title}</p>
-                      {recipe.fodmap_notes && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{recipe.fodmap_notes}</p>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            ) : (() => {
+              const q = recipeSearch.toLowerCase()
+              const filtered = recipes.filter(r =>
+                (r.tags.length === 0 || r.tags.includes(picking.meal_type)) &&
+                (q === '' || r.title.toLowerCase().includes(q))
+              )
+              return filtered.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  {q !== '' ? `No recipes matching "${recipeSearch}".` : `No recipes tagged for ${picking.meal_type}.`}
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-50 pb-6">
+                  {filtered.map(recipe => (
+                    <li key={recipe.id}>
+                      <button
+                        onClick={() => assignRecipe(recipe)}
+                        className="w-full text-left px-4 py-3 hover:bg-green-50 transition-colors"
+                      >
+                        <p className="text-sm font-medium text-gray-800">{recipe.title}</p>
+                        {recipe.fodmap_notes && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">{recipe.fodmap_notes}</p>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            })()}
           </div>
         </div>
       )}
