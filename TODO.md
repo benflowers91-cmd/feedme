@@ -7,6 +7,15 @@
   - Needs: Calendar scope added to the existing Google OAuth (NextAuth) consent; a way to map "this week's plan" to calendar event start/end times per day; a new API route to create the events.
   - Out of scope for this pass: two-way sync, editing a plan slot after it's been pushed, Google Tasks integration.
 
+## Pantry
+
+- [x] **Plan page recipe picker sorted A–Z** (`app/plan/page.tsx`)
+
+- [x] **Photo scan: keep vague items out of the pantry**
+  Scans were returning things like "some kind of cereal" or "unidentified sauce", which are useless once saved. The analyze tool now has a separate `unidentified` list. Claude is told to only put an item in `items` if it can name it specifically enough to cook with or shop for. Unidentified items show as a grey "couldn't identify, not added" note on the review screen, can't be ticked, and are never saved. If a scan finds only unidentified items, the error message lists what it saw.
+  - **Files:** `app/api/pantry/analyze/route.ts`, `app/pantry/page.tsx`
+  - **Trade-off:** there's no server-side filter on vague wording, so we rely on the model following the schema. If vague names still get through, a regex safety net is the next step.
+
 ## Pantry Search
 
 - [x] **Add clear button to pantry search bar**
