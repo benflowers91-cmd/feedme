@@ -1,7 +1,16 @@
 import type { MealPlanEntry } from '@/lib/types'
 
 const TIMEZONE = 'Europe/London'
-const CALENDAR_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+
+/**
+ * Events go to the shared household calendar when HOUSEHOLD_CALENDAR_ID is set,
+ * so either member can push and stored event ids stay valid. Falls back to the
+ * pusher's primary calendar. Read at call time so tests can change it.
+ */
+function calendarApi(): string {
+  const calendarId = process.env.HOUSEHOLD_CALENDAR_ID?.trim() || 'primary'
+  return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
+}
 
 export const MEAL_TIMES: Record<string, [string, string]> = {
   breakfast: ['09:00', '09:30'],
@@ -46,7 +55,7 @@ export async function upsertCalendarEvent(accessToken: string, entry: MealPlanEn
   }
 
   if (entry.calendar_event_id) {
-    const patchRes = await fetch(`${CALENDAR_API}/${entry.calendar_event_id}`, {
+    const patchRes = await fetch(`${calendarApi()}/${entry.calendar_event_id}`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(payload),
@@ -61,7 +70,7 @@ export async function upsertCalendarEvent(accessToken: string, entry: MealPlanEn
     // Event was deleted on the Google Calendar side — fall through to create a new one.
   }
 
-  const postRes = await fetch(CALENDAR_API, {
+  const postRes = await fetch(calendarApi(), {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),

@@ -1,5 +1,6 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import { isHouseholdMember } from '@/lib/household'
 
 declare module 'next-auth/jwt' {
   interface JWT {
@@ -43,6 +44,10 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    // Only household members can sign in. Anyone else gets NextAuth's access-denied page.
+    async signIn({ user }) {
+      return isHouseholdMember(user.email)
+    },
     async jwt({ token, account }) {
       if (account) {
         token.access_token = account.access_token

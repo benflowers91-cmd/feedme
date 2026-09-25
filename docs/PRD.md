@@ -21,9 +21,9 @@ Eating FODMAP-safe is hard work. Most recipes online aren't FODMAP-compliant, an
 
 ## Who it's for
 
-**Right now:** Ben only. Single-user. No onboarding, no marketing, no multi-tenancy.
+**Right now:** Ben and his partner, as one shared household. They see and edit the same pantry, recipes, plan and shopping list, and push to a shared "FeedMe meals" Google calendar. Sign-in is limited to the emails in `HOUSEHOLD_EMAILS` (see `docs/household-setup.md`). No onboarding, no marketing, no multi-tenancy.
 
-**Near future:** Ben's partner and a small circle of friends. Small-scale sharing, not a public launch. Requires RLS on Supabase and per-user dietary profiles before this is safe to open up.
+**Near future:** possibly a small circle of friends. Separate households would need RLS on Supabase, a real household table, and per-user dietary profiles before this is safe to open up.
 
 **Success looks like:** Daily personal use. Light portfolio piece — something to reference and demo, not necessarily a product launch.
 
@@ -134,7 +134,7 @@ Browse any recipe site and click one button to fetch, adapt, and save directly t
 - Chrome-only first, or Firefox too?
 
 #### Multi-user / sharing
-Share FeedMe with partner and friends. Requires:
+Partner: done as a single shared household. No RLS or dietary profiles needed, because the constraints are the same, both members are trusted, and routes filter by household id server-side. Sharing with friends as separate households still requires:
 - RLS policies on all Supabase tables (currently none — safe only because it's single-user)
 - Per-user dietary profiles (so partner's settings don't affect Ben's suggestions)
 - Some form of invite / onboarding flow

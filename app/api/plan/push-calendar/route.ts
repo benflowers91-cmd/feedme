@@ -2,13 +2,15 @@ import { getServerSession } from 'next-auth'
 import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { createServerClient } from '@/lib/supabase'
 import { refreshGoogleAccessToken, upsertCalendarEvent, MEAL_TIMES } from '@/lib/google-calendar'
 import type { MealPlanEntry } from '@/lib/types'
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
   const { data: entries, error } = await supabase
     .from('meal_plan')
     .select('*')
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
     .in('meal_type', Object.keys(MEAL_TIMES))
     .gte('plan_date', from)
     .lte('plan_date', to)

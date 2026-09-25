@@ -1,10 +1,12 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { createServerClient } from '@/lib/supabase'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -12,7 +14,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('shopping_items')
     .select('*')
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
     .order('is_checked')
     .order('created_at', { ascending: false })
 
@@ -22,7 +24,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -31,8 +34,8 @@ export async function POST(request: Request) {
 
   // bulk insert (array) or single item
   const items = Array.isArray(body)
-    ? body.map((item: object) => ({ ...item, user_id: session.user!.email }))
-    : [{ ...body, user_id: session.user.email }]
+    ? body.map((item: object) => ({ ...item, user_id: householdId }))
+    : [{ ...body, user_id: householdId }]
 
   const { data, error } = await supabase
     .from('shopping_items')
@@ -45,7 +48,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -59,7 +63,7 @@ export async function PATCH(request: Request) {
     .from('shopping_items')
     .update(body)
     .eq('id', id)
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
     .select()
     .single()
 
@@ -69,7 +73,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -84,7 +89,7 @@ export async function DELETE(request: Request) {
     const { error } = await supabase
       .from('shopping_items')
       .delete()
-      .eq('user_id', session.user.email)
+      .eq('user_id', householdId)
     if (error) return Response.json({ error: error.message }, { status: 500 })
     return new Response(null, { status: 204 })
   }
@@ -93,7 +98,7 @@ export async function DELETE(request: Request) {
     const { error } = await supabase
       .from('shopping_items')
       .delete()
-      .eq('user_id', session.user.email)
+      .eq('user_id', householdId)
       .eq('is_checked', true)
     if (error) return Response.json({ error: error.message }, { status: 500 })
     return new Response(null, { status: 204 })
@@ -105,7 +110,7 @@ export async function DELETE(request: Request) {
     .from('shopping_items')
     .delete()
     .eq('id', id)
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return new Response(null, { status: 204 })

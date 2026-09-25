@@ -1,12 +1,13 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { extractRecipeFromHtml, classifyUrl } from '@/lib/scrape-utils'
 
 const MAX_BYTES = 2 * 1024 * 1024 // 2MB
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  if (!getHouseholdId(session)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

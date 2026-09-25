@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { createServerClient } from '@/lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -40,7 +41,8 @@ const CONSOLIDATE_TOOL: Anthropic.Tool = {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
   const { data: pantryData } = await supabase
     .from('pantry_items')
     .select('name, quantity')
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
 
   const pantryItems = pantryData ?? []
   const pantrySection = pantryItems.length > 0
