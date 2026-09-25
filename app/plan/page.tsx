@@ -366,7 +366,7 @@ export default function PlanPage() {
               const filtered = recipes.filter(r =>
                 (r.tags.length === 0 || r.tags.includes(picking.meal_type)) &&
                 (q === '' || r.title.toLowerCase().includes(q))
-              )
+              ).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
               return filtered.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">
                   {q !== '' ? `No recipes matching "${recipeSearch}".` : `No recipes tagged for ${picking.meal_type}.`}
