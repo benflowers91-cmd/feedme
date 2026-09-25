@@ -40,6 +40,7 @@ export default function PantryPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [scanError, setScanError] = useState('')
   const [suggested, setSuggested] = useState<SuggestedItem[]>([])
+  const [unidentified, setUnidentified] = useState<string[]>([])
   const [addingBulk, setAddingBulk] = useState(false)
   const [newlyAddedIds, setNewlyAddedIds] = useState<Set<string>>(new Set())
 
@@ -140,8 +141,9 @@ export default function PantryPage() {
     setAnalyzing(true)
     setScanError('')
     setSuggested([])
+    setUnidentified([])
 
-    let data: { items?: unknown; error?: string }
+    let data: { items?: unknown; unidentified?: unknown; error?: string }
     try {
       const formData = new FormData()
       formData.append('image', file)
@@ -178,10 +180,17 @@ export default function PantryPage() {
     }
 
     const rawItems = data.items as Array<{ name: string; quantity?: string; fodmap_status: FodmapStatus }>
+    const rawUnidentified = Array.isArray(data.unidentified) ? data.unidentified as string[] : []
     if (rawItems.length === 0) {
-      setScanError("Claude couldn't identify any food items in this photo — try a clearer or closer shot")
+      setScanError(
+        rawUnidentified.length > 0
+          ? `Claude couldn't name anything specifically (saw: ${rawUnidentified.join(', ')}) — try a closer shot with labels facing the camera`
+          : "Claude couldn't identify any food items in this photo — try a clearer or closer shot"
+      )
       return
     }
+
+    setUnidentified(rawUnidentified)
 
     setSuggested(rawItems.map(item => ({
       name: item.name,
@@ -220,6 +229,7 @@ export default function PantryPage() {
 
       setShowScan(false)
       setSuggested([])
+      setUnidentified([])
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setScanError(`Failed to add items — ${msg}`)
@@ -236,6 +246,7 @@ export default function PantryPage() {
     if (showScan) {
       setShowScan(false)
       setSuggested([])
+      setUnidentified([])
       setScanError('')
       setAnalyzing(false)
     } else {
@@ -489,6 +500,19 @@ export default function PantryPage() {
                   </li>
                 ))}
               </ul>
+              {unidentified.length > 0 && (
+                <div className="mb-4 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                  <p className="text-xs font-medium text-gray-500">
+                    Couldn&apos;t identify {unidentified.length === 1 ? '1 item' : `${unidentified.length} items`} — not added
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {unidentified.map((desc, i) => (
+                      <li key={i} className="text-xs text-gray-400">{desc}</li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-gray-400 mt-1.5">Add them by hand above if you know what they are.</p>
+                </div>
+              )}
               {scanError && (
                 <div className="mb-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   <p className="text-xs text-red-600 font-mono break-all">{scanError}</p>

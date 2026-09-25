@@ -29,8 +29,14 @@ const ANALYZE_TOOL: Anthropic.Tool = {
           required: ['name', 'fodmap_status'],
         },
       },
+      unidentified: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Short descriptions of items you can see but cannot name specifically (e.g. "cereal box, label hidden", "unlabelled jar of sauce"). These are shown to the user as not recognised and are never saved.',
+      },
     },
-    required: ['items'],
+    required: ['items', 'unidentified'],
   },
 }
 
@@ -107,7 +113,7 @@ export async function POST(request: Request) {
             },
             {
               type: 'text',
-              text: 'Identify all visible food ingredients and pantry items in this image. For each item, estimate any visible quantity (e.g. "1 can", "500g", "2 heads") and classify its FODMAP status based on the guidelines in your system prompt.',
+              text: 'Identify all visible food ingredients and pantry items in this image. For each item, estimate any visible quantity (e.g. "1 can", "500g", "2 heads") and classify its FODMAP status based on the guidelines in your system prompt.\n\nOnly put an item in `items` if you can name it specifically enough to cook with or shop for (e.g. "cornflakes", "soy sauce", "tinned chopped tomatoes"). If you can only guess at a category ("some kind of cereal", "a sauce", "unidentified jar"), put a short description in `unidentified` instead. Never pad `items` with vague guesses.',
             },
           ],
         },
@@ -124,7 +130,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const input = toolBlock.input as { items?: unknown }
+    const input = toolBlock.input as { items?: unknown; unidentified?: unknown }
     if (!Array.isArray(input.items)) {
       console.error('Pantry analyze — malformed items in tool response:', JSON.stringify(input))
       return Response.json(
@@ -133,7 +139,11 @@ export async function POST(request: Request) {
       )
     }
 
-    return Response.json(input)
+    const unidentified = Array.isArray(input.unidentified)
+      ? input.unidentified.filter((u): u is string => typeof u === 'string' && u.trim() !== '')
+      : []
+
+    return Response.json({ items: input.items, unidentified })
   } catch (err: unknown) {
     console.error('Pantry analyze — Claude API error:', err)
     const anthropicErr = err as { status?: number; message?: string }
