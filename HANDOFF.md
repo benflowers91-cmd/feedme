@@ -65,7 +65,6 @@ app/
     plan/route.ts               # GET/POST/DELETE meal_plan
     shopping/route.ts           # GET/POST/PATCH/DELETE shopping_items
     adapt/route.ts              # POST — Claude analysis with per-ingredient subs (tool_use)
-    suggest/route.ts            # POST — Claude-written recipe suggestions from pantry (tool_use); not currently called by any page — superseded by pantry-ideas + Tavily search, see below
 components/
   BottomNav.tsx
   Providers.tsx                 # SessionProvider wrapper
@@ -78,7 +77,6 @@ lib/
   scrape-utils.ts               # Pure JSON-LD extraction logic (also used in tests)
 __tests__/
   api/adapt.test.ts             # Route smoke tests — auth, validation, Claude mock
-  api/suggest.test.ts           # Route smoke tests — auth, Claude mock
   lib/scrape-utils.test.ts      # Pure extraction tests — no mocks, no network
 schema.sql                      # Run once in Supabase SQL editor
 public/manifest.json            # PWA manifest
@@ -143,19 +141,13 @@ alter table recipes add column if not exists is_favourite boolean not null defau
 
 ## AI (Claude)
 
-Both Claude routes (`/api/adapt`, `/api/suggest`) use `tool_use` with a typed schema to force structured output — no text parsing or JSON cleanup. The FODMAP system prompt is cached via `cache_control: ephemeral`.
+The Claude routes (e.g. `/api/adapt`, `/api/pantry/analyze`) use `tool_use` with a typed schema to force structured output — no text parsing or JSON cleanup. The FODMAP system prompt is cached via `cache_control: ephemeral`.
 
 **`/api/adapt`**
 - Model: `claude-sonnet-4-6`
 - Returns per-ingredient analysis: `fodmap_status` + `substitution_options[]`
 - User picks substitutions on the adapt page before saving
 - Recipe text capped at 8,000 characters
-
-**`/api/suggest`** *(orphaned — not wired to any page currently; see "Find page" below)*
-- Model: `claude-sonnet-4-6`
-- Returns 3 complete FODMAP-safe recipes based on pantry items + optional preferences
-- Recipes include full ingredients (with quantities) and step-by-step instructions
-- Can be saved directly without going through the adapt flow
 
 **`/api/pantry-ideas`**
 - Model: `claude-haiku-4-5-20251001`
@@ -224,7 +216,6 @@ npm run test:watch  # watch mode for development
 |---|---|
 | `__tests__/lib/scrape-utils.test.ts` | JSON-LD extraction: nested recipes, @graph, string vs array instructions, edge cases |
 | `__tests__/api/adapt.test.ts` | Auth (401), validation (400), success path with mocked Claude, unexpected Claude response |
-| `__tests__/api/suggest.test.ts` | Auth (401), success with pantry items, success with empty pantry |
 
 ---
 
@@ -300,7 +291,7 @@ The allowlist lives in `lib/scrape-utils.ts` alongside the existing extraction l
 Replace the hardcoded profile with a user-configurable dietary profile stored in Supabase (a `user_profiles` table or a `profile` JSONB column on users). The Claude routes read the profile at request time and inject it into the system prompt.  
 **Scope includes:** a settings page (`/settings`) with toggles/text inputs for FODMAP sensitivity level, named allergies, and any additional restrictions (dairy-free, vegan, etc.).  
 **Effort:** Medium. Schema change, new settings page, update both Claude routes to pull profile.  
-**Files:** `schema.sql`, `lib/fodmap-prompt.ts`, `app/api/adapt/route.ts`, `app/api/suggest/route.ts`, new `app/settings/page.tsx`.
+**Files:** `schema.sql`, `lib/fodmap-prompt.ts`, `app/api/adapt/route.ts`, new `app/settings/page.tsx`.
 
 ---
 

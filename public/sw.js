@@ -1,4 +1,4 @@
-const CACHE = 'feedme-v1';
+const CACHE = 'feedme-v2';
 const PRECACHE = [
   '/',
   '/manifest.json',
@@ -25,6 +25,25 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // Don't cache API routes or auth
   if (url.pathname.startsWith('/api/')) return;
+
+  // Pages: network first, so a new deploy shows up on the next open.
+  // Falls back to the cached copy when offline.
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request).then((cached) => cached || caches.match('/')))
+    );
+    return;
+  }
+
+  // Static assets (hashed JS/CSS, icons): cache first.
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const network = fetch(e.request).then((res) => {

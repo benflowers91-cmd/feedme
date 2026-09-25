@@ -16,6 +16,13 @@
   - **Files:** `app/api/pantry/analyze/route.ts`, `app/pantry/page.tsx`
   - **Trade-off:** there's no server-side filter on vague wording, so we rely on the model following the schema. If vague names still get through, a regex safety net is the next step.
 
+## Tidy-up
+
+- [x] **Service worker no longer serves stale pages after a deploy** (`public/sw.js`). Pages are now network-first with a cached fallback for offline; static assets stay cache-first. Cache bumped to `feedme-v2`.
+- [x] **Removed dead `/api/suggest` route and its test.** No page called it since the Find page moved to pantry-ideas + Tavily.
+- [x] **Removed unused Next.js starter SVGs** from `public/`.
+- [x] **Shopping PATCH only accepts `is_checked`, `name`, `quantity`.** It previously passed the raw body to Supabase, so a request could rewrite `user_id`.
+
 ## Pantry Search
 
 - [x] **Add clear button to pantry search bar**
