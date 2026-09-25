@@ -127,6 +127,31 @@ describe('POST /api/plan/push-calendar', () => {
     expect(mockUpdateEq).toHaveBeenCalledWith('id', 'entry-1')
   })
 
+  it('pushes to the shared household calendar when HOUSEHOLD_CALENDAR_ID is set', async () => {
+    process.env.HOUSEHOLD_CALENDAR_ID = 'abc123@group.calendar.google.com'
+    try {
+      mockGetServerSession.mockResolvedValue(FAKE_SESSION)
+      mockGetToken.mockResolvedValue(VALID_TOKEN)
+      selectResult = { data: [entry()], error: null }
+      const fetchMock = global.fetch as ReturnType<typeof vi.fn>
+      fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 'evt-1' }) })
+
+      await POST(makeRequest({ from: '2026-08-03', to: '2026-08-09' }) as Parameters<typeof POST>[0])
+
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://www.googleapis.com/calendar/v3/calendars/abc123%40group.calendar.google.com/events'
+      )
+    } finally {
+      delete process.env.HOUSEHOLD_CALENDAR_ID
+    }
+  })
+
+  it('refuses a signed-in user who is not in the household', async () => {
+    mockGetServerSession.mockResolvedValue({ user: { email: 'stranger@example.com' } })
+    const res = await POST(makeRequest({ from: '2026-08-03', to: '2026-08-09' }) as Parameters<typeof POST>[0])
+    expect(res.status).toBe(401)
+  })
+
   it('PATCHes the existing event when calendar_event_id is already set', async () => {
     mockGetServerSession.mockResolvedValue(FAKE_SESSION)
     mockGetToken.mockResolvedValue(VALID_TOKEN)

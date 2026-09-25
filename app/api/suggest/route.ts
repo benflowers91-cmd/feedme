@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import Anthropic from '@anthropic-ai/sdk'
 import { FODMAP_SYSTEM_PROMPT } from '@/lib/fodmap-prompt'
 
@@ -45,7 +46,7 @@ const SUGGEST_TOOL: Anthropic.Tool = {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  if (!getHouseholdId(session)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -2,7 +2,7 @@
 
 # About this project
 
-FeedMe is a personal FODMAP meal planning app built by Ben for personal use. Single-user. No onboarding, no multi-tenancy. Dietary constraints are non-negotiable: FODMAP sensitivity + no shellfish under any circumstances.
+FeedMe is a personal FODMAP meal planning app built by Ben for personal use. Single household (Ben and his partner share all data; see `lib/household.ts`). No onboarding, no multi-tenancy. Dietary constraints are non-negotiable: FODMAP sensitivity + no shellfish under any circumstances.
 
 Full product context is in `docs/PRD.md` — treat it as the source of truth for what's built, what's planned, and what's explicitly out of scope. Check it before proposing new work.
 

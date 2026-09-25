@@ -103,7 +103,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase project settings>
 SUPABASE_SERVICE_ROLE_KEY=<from Supabase project settings — never expose to client>
 ANTHROPIC_API_KEY=<from console.anthropic.com>
 TAVILY_API_KEY=<from app.tavily.com — web recipe search>
+HOUSEHOLD_EMAILS=<comma-separated; owner's email FIRST — only these can sign in, all data is stored under the first>
+HOUSEHOLD_CALENDAR_ID=<shared "FeedMe meals" Google Calendar ID; optional, falls back to the pusher's primary calendar>
 ```
+
+Adding or changing a household member: see [`docs/household-setup.md`](docs/household-setup.md).
 
 ---
 
@@ -117,7 +121,7 @@ Run `schema.sql` once in the Supabase SQL editor to create the tables. **If the 
 - `meal_plan` — unique constraint on `(user_id, plan_date, meal_type)`; upsert on POST
 - `shopping_items` — manual or plan-generated; `is_checked` toggled via PATCH
 
-`user_id` in every table = session user email (from NextAuth).  
+`user_id` in every table = the household id: the **first** email in `HOUSEHOLD_EMAILS` (`lib/household.ts`). Every member reads and writes the same rows.  
 Supabase service role key bypasses RLS — all filtering is done manually in API routes.
 
 ### Pending migrations

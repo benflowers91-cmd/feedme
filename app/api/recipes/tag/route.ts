@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { createServerClient } from '@/lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -49,17 +50,17 @@ async function tagRecipe(
 
 export async function POST() {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userEmail = session.user!.email!
   const supabase = createServerClient()
 
   const { data: recipes, error } = await supabase
     .from('recipes')
     .select('id, title, ingredients, tags')
-    .eq('user_id', userEmail)
+    .eq('user_id', householdId)
     .eq('is_saved', true)
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -87,7 +88,7 @@ export async function POST() {
         .from('recipes')
         .update({ tags })
         .eq('id', recipe.id)
-        .eq('user_id', userEmail)
+        .eq('user_id', householdId)
 
       if (updateError) return null
       return { id: recipe.id, tags }

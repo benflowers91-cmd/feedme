@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { createServerClient } from '@/lib/supabase'
 
 /**
@@ -11,7 +12,8 @@ import { createServerClient } from '@/lib/supabase'
  */
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -32,7 +34,7 @@ export async function POST(request: Request) {
     .from('pantry_items')
     .update({ last_confirmed_at: now, updated_at: now })
     .in('id', ids)
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
     .select()
 
   if (error) return Response.json({ error: error.message }, { status: 500 })

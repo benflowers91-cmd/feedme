@@ -1,10 +1,12 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getHouseholdId } from '@/lib/household'
 import { createServerClient } from '@/lib/supabase'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -12,7 +14,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('recipes')
     .select('*')
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
     .eq('is_saved', true)
     .order('created_at', { ascending: false })
 
@@ -22,7 +24,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -30,7 +33,7 @@ export async function POST(request: Request) {
   const supabase = createServerClient()
   const { data, error } = await supabase
     .from('recipes')
-    .insert({ ...body, user_id: session.user.email, is_saved: true })
+    .insert({ ...body, user_id: householdId, is_saved: true })
     .select()
     .single()
 
@@ -40,7 +43,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -71,7 +75,7 @@ export async function PATCH(request: Request) {
     .from('recipes')
     .update(update)
     .eq('id', id)
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
     .select()
     .single()
 
@@ -81,7 +85,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const householdId = getHouseholdId(session)
+  if (!householdId) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -94,7 +99,7 @@ export async function DELETE(request: Request) {
     .from('recipes')
     .delete()
     .eq('id', id)
-    .eq('user_id', session.user.email)
+    .eq('user_id', householdId)
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return new Response(null, { status: 204 })
