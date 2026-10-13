@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
 import type { Recipe, MealType } from '@/lib/types'
+import { groupTags, TAG_GROUP_ORDER, TAG_GROUP_LABELS } from '@/lib/tag-groups'
 
 const STATUS_STYLES: Record<string, string> = {
   safe: 'text-green-600',
@@ -193,7 +194,8 @@ export default function SavedPage() {
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
-  const allTags = [...new Set(recipes.flatMap(r => r.tags ?? []))].sort()
+  const allTags = [...new Set(recipes.flatMap(r => r.tags ?? []))]
+  const allTagGroups = groupTags(allTags)
   const favouriteCount = recipes.filter(r => r.is_favourite).length
 
   const trimmedSearch = searchQuery.trim().toLowerCase()
@@ -270,21 +272,28 @@ export default function SavedPage() {
             )}
           </div>
 
-          {/* Tag filters */}
+          {/* Tag filters, grouped */}
           {allTags.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap">
-              {allTags.map(tag => (
-                <button
-                  key={tag}
-                  onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors capitalize ${
-                    tagFilter === tag
-                      ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
-                  }`}
-                >
-                  {tag}
-                </button>
+            <div className="space-y-1.5">
+              {TAG_GROUP_ORDER.filter(group => allTagGroups[group].length > 0).map(group => (
+                <div key={group} className="flex gap-1.5 flex-wrap items-center">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-20 shrink-0">
+                    {TAG_GROUP_LABELS[group]}
+                  </span>
+                  {allTagGroups[group].map(tag => (
+                    <button
+                      key={tag}
+                      onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors capitalize ${
+                        tagFilter === tag
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           )}
@@ -342,6 +351,7 @@ export default function SavedPage() {
                     {groupRecipes.map(recipe => {
                       const isExpanded = expandedId === recipe.id
                       const tags = recipe.tags ?? []
+                      const tagGroups = groupTags(tags)
                       return (
               <div key={recipe.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <button
@@ -375,7 +385,7 @@ export default function SavedPage() {
                           source ↗
                         </a>
                       )}
-                      {tags.map(tag => (
+                      {TAG_GROUP_ORDER.flatMap(group => tagGroups[group]).map(tag => (
                         <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 capitalize">
                           {tag}
                         </span>
@@ -426,19 +436,24 @@ export default function SavedPage() {
                     {/* Tags management */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags</p>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {tags.map(tag => (
-                          <span key={tag} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 capitalize">
-                            {tag}
-                            <button
-                              onClick={() => removeTag(recipe, tag)}
-                              disabled={savingTags === recipe.id}
-                              className="hover:text-blue-800 ml-0.5 leading-none"
-                              aria-label={`Remove tag ${tag}`}
-                            >
-                              ×
-                            </button>
-                          </span>
+                      <div className="space-y-1.5 mb-2">
+                        {TAG_GROUP_ORDER.filter(group => tagGroups[group].length > 0).map(group => (
+                          <div key={group} className="flex flex-wrap gap-1.5 items-center">
+                            <span className="text-xs text-gray-400 w-20 shrink-0">{TAG_GROUP_LABELS[group]}</span>
+                            {tagGroups[group].map(tag => (
+                              <span key={tag} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 capitalize">
+                                {tag}
+                                <button
+                                  onClick={() => removeTag(recipe, tag)}
+                                  disabled={savingTags === recipe.id}
+                                  className="hover:text-blue-800 ml-0.5 leading-none"
+                                  aria-label={`Remove tag ${tag}`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
                         ))}
                         {tags.length === 0 && (
                           <span className="text-xs text-gray-400">No tags yet</span>

@@ -44,6 +44,10 @@
   On-demand "Auto-tag all" button on the Saved page. New `POST /api/recipes/tag` route calls Claude Haiku with recipe title + first few ingredients → returns `{ meal_type, cuisine, effort }` via tool_use → PATCHes recipe. Only processes untagged recipes. Tags: meal_type (breakfast/lunch/dinner/snack), cuisine (open string), effort (quick/moderate/involved).
   - **Files:** `app/saved/page.tsx`, `app/api/recipes/tag/route.ts`
 
+- [x] **Group tags on the Saved page into Meal / Difficulty / Cuisine / Other**
+  Display-only: tags stay a flat `string[]` in the DB. `lib/tag-groups.ts` classifies by fixed vocab lists. Applied to the filter bar, card chips (ordered by group) and the expanded tag editor. Food-type tags (meat, pasta, soup...) and unknown manual tags go in "Other". A new cuisine the auto-tagger invents lands in Other until it's added to `CUISINE_TAGS`.
+  - **Files:** `lib/tag-groups.ts`, `app/saved/page.tsx`, `__tests__/lib/tag-groups.test.ts`
+
 ## Shopping List
 
 - [x] **Consolidate cross-references pantry**
