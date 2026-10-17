@@ -52,6 +52,10 @@
   Auto-tagger now returns `course` (enum). "Auto-tag all" also backfills recipes that have tags but no course: it appends only the course tag, leaving existing tags alone. Calls run in batches of 10 to avoid rate limits on the one-off backfill (~150 recipes). Existing "main" tags count as a course, so those 39 recipes are skipped. "dessert" moved from Meal to Course. "side" added by Claude, not in the original ask.
   - **Files:** `lib/tag-groups.ts`, `app/api/recipes/tag/route.ts`
 
+- [x] **Ingredient group on Saved page**
+  Food-type tags (meat, fish, pasta, soup, vegetarian...) moved from Other into a new Ingredient group, per Ben. Fixed list `INGREDIENT_TAGS` in `lib/tag-groups.ts`; Other stays as the fallback for unrecognised manual tags. A new food type from the auto-tagger lands in Other until added to the list.
+  - **Files:** `lib/tag-groups.ts`
+
 ## Shopping List
 
 - [x] **Consolidate cross-references pantry**

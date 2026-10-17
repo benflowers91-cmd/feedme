@@ -9,7 +9,8 @@ describe('tagGroup', () => {
     expect(tagGroup('quick')).toBe('difficulty')
     expect(tagGroup('involved')).toBe('difficulty')
     expect(tagGroup('middle eastern')).toBe('cuisine')
-    expect(tagGroup('pasta')).toBe('other')
+    expect(tagGroup('pasta')).toBe('ingredient')
+    expect(tagGroup('vegetarian')).toBe('ingredient')
   })
 
   it('is case-insensitive', () => {
@@ -28,7 +29,8 @@ describe('groupTags', () => {
       course: ['starter', 'dessert'],
       difficulty: ['quick', 'involved'],
       cuisine: ['british', 'thai'],
-      other: ['meat'],
+      ingredient: ['meat'],
+      other: [],
     })
   })
 })
