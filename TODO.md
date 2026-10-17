@@ -48,6 +48,10 @@
   Display-only: tags stay a flat `string[]` in the DB. `lib/tag-groups.ts` classifies by fixed vocab lists. Applied to the filter bar, card chips (ordered by group) and the expanded tag editor. Food-type tags (meat, pasta, soup...) and unknown manual tags go in "Other". A new cuisine the auto-tagger invents lands in Other until it's added to `CUISINE_TAGS`.
   - **Files:** `lib/tag-groups.ts`, `app/saved/page.tsx`, `__tests__/lib/tag-groups.test.ts`
 
+- [x] **Course tags (starter / main / side / dessert) + Course group on Saved page**
+  Auto-tagger now returns `course` (enum). "Auto-tag all" also backfills recipes that have tags but no course: it appends only the course tag, leaving existing tags alone. Calls run in batches of 10 to avoid rate limits on the one-off backfill (~150 recipes). Existing "main" tags count as a course, so those 39 recipes are skipped. "dessert" moved from Meal to Course. "side" added by Claude, not in the original ask.
+  - **Files:** `lib/tag-groups.ts`, `app/api/recipes/tag/route.ts`
+
 ## Shopping List
 
 - [x] **Consolidate cross-references pantry**
