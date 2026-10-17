@@ -2,12 +2,15 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createServerClient } from '@/lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
+import { COURSE_TAGS } from '@/lib/tag-groups'
 
 const anthropic = new Anthropic()
 
+type TagData = { meal_type: string; course: string; food_type: string; cuisine: string; effort: string }
+
 const TAG_TOOL: Anthropic.Tool = {
   name: 'tag_recipe',
-  description: 'Return meal_type, food_type, cuisine, and effort tags for a recipe',
+  description: 'Return meal_type, course, food_type, cuisine, and effort tags for a recipe',
   input_schema: {
     type: 'object',
     properties: {
@@ -16,18 +19,23 @@ const TAG_TOOL: Anthropic.Tool = {
         enum: ['breakfast', 'lunch', 'dinner', 'snack'],
         description: 'When this recipe is eaten',
       },
+      course: {
+        type: 'string',
+        enum: [...COURSE_TAGS],
+        description: 'Which course of a meal this dish is',
+      },
       food_type: { type: 'string', description: 'Type of food e.g. meat, fish, salad, pasta, soup, vegetarian, vegan' },
       cuisine: { type: 'string', description: 'Cuisine style e.g. italian, mexican, asian, british' },
       effort: { type: 'string', enum: ['quick', 'moderate', 'involved'] },
     },
-    required: ['meal_type', 'food_type', 'cuisine', 'effort'],
+    required: ['meal_type', 'course', 'food_type', 'cuisine', 'effort'],
   },
 }
 
 async function tagRecipe(
   title: string,
   ingredientNames: string[],
-): Promise<{ meal_type: string; food_type: string; cuisine: string; effort: string } | null> {
+): Promise<TagData | null> {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -41,7 +49,7 @@ async function tagRecipe(
     })
     const toolBlock = response.content.find(b => b.type === 'tool_use')
     if (!toolBlock || toolBlock.type !== 'tool_use') return null
-    return toolBlock.input as { meal_type: string; food_type: string; cuisine: string; effort: string }
+    return toolBlock.input as TagData
   } catch {
     return null
   }
@@ -64,35 +72,47 @@ export async function POST() {
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  const untagged = (recipes ?? []).filter(r => !r.tags || r.tags.length === 0)
+  // Untagged recipes get the full set. Recipes tagged before course existed
+  // only get a course tag added, so their other tags (incl. manual edits) stay.
+  const hasCourse = (tags: string[]) => tags.some(t => (COURSE_TAGS as readonly string[]).includes(t))
+  const untagged = (recipes ?? []).filter(r => !r.tags || r.tags.length === 0 || !hasCourse(r.tags))
 
   if (untagged.length === 0) {
     return Response.json({ tagged: 0, results: [] })
   }
 
-  const results = await Promise.all(
-    untagged.map(async (recipe) => {
-      const ingredientNames = (recipe.ingredients ?? []).map((i: { name: string }) => i.name)
-      const tagData = await tagRecipe(recipe.title, ingredientNames)
-      if (!tagData) return null
+  type Row = (typeof untagged)[number]
+  const tagOne = async (recipe: Row) => {
+    const ingredientNames = (recipe.ingredients ?? []).map((i: { name: string }) => i.name)
+    const tagData = await tagRecipe(recipe.title, ingredientNames)
+    if (!tagData) return null
 
-      const tags = [
-        tagData.meal_type,
-        tagData.food_type.toLowerCase(),
-        tagData.cuisine.toLowerCase(),
-        tagData.effort,
-      ].filter(Boolean)
+    const existing: string[] = recipe.tags ?? []
+    const tags = existing.length > 0
+      ? [...existing, tagData.course]
+      : [
+          tagData.meal_type,
+          tagData.course,
+          tagData.food_type.toLowerCase(),
+          tagData.cuisine.toLowerCase(),
+          tagData.effort,
+        ].filter(Boolean)
 
-      const { error: updateError } = await supabase
-        .from('recipes')
-        .update({ tags })
-        .eq('id', recipe.id)
-        .eq('user_id', userEmail)
+    const { error: updateError } = await supabase
+      .from('recipes')
+      .update({ tags })
+      .eq('id', recipe.id)
+      .eq('user_id', userEmail)
 
-      if (updateError) return null
-      return { id: recipe.id, tags }
-    }),
-  )
+    if (updateError) return null
+    return { id: recipe.id, tags }
+  }
+
+  // Batches of 10 so a full backfill doesn't hit the API rate limit
+  const results: ({ id: string; tags: string[] } | null)[] = []
+  for (let i = 0; i < untagged.length; i += 10) {
+    results.push(...await Promise.all(untagged.slice(i, i + 10).map(tagOne)))
+  }
 
   const tagged = results.filter((r): r is { id: string; tags: string[] } => r !== null)
   return Response.json({ tagged: tagged.length, results: tagged })
