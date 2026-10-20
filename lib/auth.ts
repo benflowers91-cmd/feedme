@@ -67,6 +67,11 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session }) {
+      const partnerEmails = process.env.PARTNER_EMAILS?.split(',').map(e => e.trim()) ?? []
+      const primaryEmail = process.env.PRIMARY_USER_EMAIL
+      if (session.user?.email && primaryEmail && partnerEmails.includes(session.user.email)) {
+        session.user.email = primaryEmail
+      }
       return session
     },
   },
