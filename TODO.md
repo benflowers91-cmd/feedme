@@ -1,5 +1,11 @@
 # FeedMe – To Do
 
+## Household sharing
+
+- [x] **Partner access — Bethan can sign in with her own Google account**
+  Session email substitution in `lib/auth.ts`: if the signed-in email matches `PARTNER_EMAILS` env var, it's replaced with `PRIMARY_USER_EMAIL` so all DB queries hit the shared account's data. Env vars set in Vercel production.
+  - **Remaining gap:** the FODMAP system prompt in `lib/fodmap-prompt.ts` is hardcoded to Ben's dietary profile — Bethan's adapt/suggest results will use the same profile. Per-user dietary profiles (see HANDOFF.md "Considered next steps #3") would fix this properly.
+
 ## Google Calendar sync (top priority — see PRD Roadmap)
 
 - [ ] **Push weekly plan to Google Calendar (one-off push)**
