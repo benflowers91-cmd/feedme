@@ -18,6 +18,7 @@ import {
   type ProposedSlot,
   type UnfilledSlot,
 } from '@/lib/plan-utils'
+import { compareNames } from '@/lib/sort'
 
 type Step = 'pantry' | 'tags' | 'leftovers' | 'preview'
 
@@ -184,15 +185,13 @@ export default function BuildWeekPage() {
     })
   }, [session, from, to])
 
-  const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
-
   const pantryOptions = pantryItems
     .filter(i => i.fodmap_status === 'safe' || i.fodmap_status === 'moderate')
-    .sort((a, b) => byName(a.name, b.name))
+    .sort((a, b) => compareNames(a.name, b.name))
 
   const tagOptions = [...new Set(recipes.flatMap(r => r.tags ?? []))]
     .filter(t => !MEAL_TYPES.includes(t as MealType))
-    .sort(byName)
+    .sort(compareNames)
 
   const planMap = Object.fromEntries(plan.map(entry => [`${entry.plan_date}:${entry.meal_type}`, entry]))
 
@@ -567,7 +566,7 @@ export default function BuildWeekPage() {
               </p>
             </div>
             {(() => {
-              const filtered = [...eligibleFor(recipes, swapping.meal_type)].sort((a, b) => byName(a.title, b.title))
+              const filtered = [...eligibleFor(recipes, swapping.meal_type)].sort((a, b) => compareNames(a.title, b.title))
               const currentTitle = proposal.find(
                 s => s.date === swapping.date && s.meal_type === swapping.meal_type
               )?.recipe.title

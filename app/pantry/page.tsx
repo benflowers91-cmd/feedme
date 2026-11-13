@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
 import { isStale, formatAge, STALE_AFTER_DAYS } from '@/lib/pantry-age'
 import type { PantryItem, FodmapStatus } from '@/lib/types'
+import { sortByName } from '@/lib/sort'
 
 const STATUS_STYLES: Record<FodmapStatus, string> = {
   safe: 'bg-green-100 text-green-700',
@@ -76,7 +77,8 @@ export default function PantryPage() {
         return
       }
       const newItem = await res.json()
-      setItems(prev => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)))
+      // Adding a name already in the pantry refreshes that row server-side, so replace it.
+      setItems(prev => [...prev.filter(i => i.id !== newItem.id), newItem])
       setName('')
       setQuantity('')
       setFodmapStatus('safe')
@@ -220,7 +222,8 @@ export default function PantryPage() {
         )
       )
       const newItems = results.filter(Boolean) as PantryItem[]
-      setItems(prev => [...prev, ...newItems].sort((a, b) => a.name.localeCompare(b.name)))
+      const newIds = new Set(newItems.map(i => i.id))
+      setItems(prev => [...prev.filter(i => !newIds.has(i.id)), ...newItems])
 
       // Mark newly added items so they're highlighted in the list
       const ids = new Set(newItems.map(i => i.id))
@@ -258,7 +261,7 @@ export default function PantryPage() {
   if (!session) return <SignInPrompt />
 
   const selectedCount = suggested.filter(i => i.selected).length
-  const staleItems = items.filter(item => isStale(item))
+  const staleItems = sortByName(items.filter(item => isStale(item)))
   const reviewBatch = staleItems.slice(0, REVIEW_BATCH_SIZE)
   const remainingAfterBatch = staleItems.length - reviewBatch.length
   const showReview = staleItems.length > 0 && !reviewDismissed
@@ -553,7 +556,7 @@ export default function PantryPage() {
         <p className="text-sm text-gray-400 text-center py-8">Your pantry is empty — add some ingredients above.</p>
       ) : (
         <ul className="space-y-2">
-          {items.map(item => {
+          {sortByName(items).map(item => {
             const isNew = newlyAddedIds.has(item.id)
             const stale = isStale(item)
             return (
