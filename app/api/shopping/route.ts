@@ -14,7 +14,7 @@ export async function GET() {
     .select('*')
     .eq('user_id', session.user.email)
     .order('is_checked')
-    .order('created_at', { ascending: false })
+    .order('name')
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)

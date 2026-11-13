@@ -3,8 +3,19 @@
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { SignInPrompt } from '@/components/SignInPrompt'
-import { tescoSearchUrl, splitNameAndQuantity } from '@/lib/shopping-item-name'
+import { tescoSearchUrl, splitNameAndQuantity, stripLeadingQuantity } from '@/lib/shopping-item-name'
 import type { ShoppingItem, MealPlanEntry, Recipe } from '@/lib/types'
+
+// Alphabetical by ingredient, ignoring case and any leading amount ("2 eggs" files
+// under E). Items added together share a created_at, so ordering by time let the
+// database return them in a different order on every load.
+function sortByName<T extends { name: string }>(list: T[]): T[] {
+  const key = (name: string) => stripLeadingQuantity(name) || name
+  return [...list].sort((a, b) =>
+    key(a.name).localeCompare(key(b.name), undefined, { sensitivity: 'base' }) ||
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  )
+}
 
 export default function ShoppingPage() {
   const { data: session, status } = useSession()
@@ -214,7 +225,7 @@ export default function ShoppingPage() {
   }
 
   function formatListForExport(): string {
-    const lines = items.filter(i => !i.is_checked).map(i => `- ${i.name}`)
+    const lines = sortByName(items.filter(i => !i.is_checked)).map(i => `- ${i.name}`)
     return 'Shopping list\n\n' + lines.join('\n')
   }
 
@@ -306,8 +317,8 @@ export default function ShoppingPage() {
   if (status === 'loading') return null
   if (!session) return <SignInPrompt />
 
-  const unchecked = items.filter(i => !i.is_checked)
-  const checked = items.filter(i => i.is_checked)
+  const unchecked = sortByName(items.filter(i => !i.is_checked))
+  const checked = sortByName(items.filter(i => i.is_checked))
 
   return (
     <div>
